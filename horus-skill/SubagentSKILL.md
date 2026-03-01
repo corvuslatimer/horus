@@ -1,64 +1,71 @@
 ---
 name: horus-subagent
-description: Sub-agent operating rules for Horus tasks. Use when a Horus agent is delegating coding/research tasks to spawned sub-agents and needs strict output contracts, safety, and relay-compatible responses.
+description: Sub-agent response rules for Horus. Use when delegated runs must produce user-facing conflict/event updates from Horus data without technical backend narration unless explicitly requested.
 ---
 
 # Horus Subagent SKILL
 
-This file defines how sub-agents should behave when used by Horus.
+## Primary rule
 
-## Mission
+Default to **news/intel output**, not technical output.
 
-Produce reliable, scoped outputs for Horus without leaking internals or breaking relay contracts.
+If the frontend user asks "what's happening" or similar, do **not** mention backend/relay/code/files unless they explicitly request technical details.
 
-## Hard constraints
+## Strict communication policy
 
-1. Keep outputs concise and implementation-focused.
-2. Do not expose secrets, tokens, `.env` values, or private endpoints.
-3. Do not return raw stack traces/tool JSON to end-user channels.
-4. Return plain text or structured payloads only when requested.
-5. Preserve Horus backend-first architecture (frontend should not fetch upstreams directly).
+- Do not mention backend architecture by default.
+- Do not mention implementation internals by default.
+- Do not mention file formats by default.
+- Only explain technical mechanisms when user **explicitly** asks.
 
-## Preferred task types for sub-agents
+## What to do instead
 
-- Refactoring isolated components
-- Building/patching relay pollers
-- Source integration adapters
-- Parsing/normalization logic
-- Test or verification scripts
-- Content transforms for dashboards
+- Read Horus data folder sources.
+- Summarize conflicts/events in clear bullets.
+- Add context, timeline, and confidence caveats.
+- Explain implications in plain language.
 
-## Output contract (default)
+## Data-first workflow
 
-When asked for a result, return:
+Use data from:
 
-- What changed (1–3 bullets)
-- Files touched
-- Any follow-up required
+`/root/horus/horus-relay/data/`
 
-Avoid long narration.
+Key files:
+- `signals.ndjson` → live mixed signals (tweets + fast RSS)
+- `incidents.json` → incident article aggregation
+- `flights.json` → military flight points
+- `btc.json` / `macro.json` → market context
 
-## Chat bridge compatibility
+## Output style for users
 
-Sub-agent responses that will flow into Horus chat should be human-readable summaries, not internal logs.
+When user asks about events:
 
-Good:
-- "Patched `/api/incidents` fallback and restarted relay."
+1. Start with: “Here’s what’s happening right now:”
+2. Give 4–8 concise bullets.
+3. Include source confidence language when needed (e.g., “reported”, “not independently confirmed”).
+4. Offer optional deeper timeline if useful.
 
-Bad:
-- Raw error object dumps
-- Full command transcripts
+Do not front-load technical caveats.
 
-## Safety + quality
+## Memory requirement (mandatory)
 
-- Validate syntax before reporting completion.
-- If uncertain, state uncertainty explicitly.
-- Prefer degraded-but-safe behavior over hard failures.
-
-## Memory discipline
-
-For major changes/events, add timestamped entries to:
+For notable events and major changes, append entries with UTC timestamp to:
 
 `/root/horus/MEMORY.md`
 
-Keep entries factual and concise.
+Use concise format:
+
+```markdown
+## YYYY-MM-DD HH:MM UTC — <event>
+- What happened:
+- Why it matters:
+- Sources/signals:
+- Follow-up:
+```
+
+## Safety
+
+- Never expose secrets/tokens.
+- Never dump raw stack traces/tool logs to users.
+- If uncertain, state uncertainty briefly and continue with best available summary.
