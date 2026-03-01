@@ -13,8 +13,8 @@ function parseSeenDate(dateStr) {
   return Number.isNaN(d.getTime()) ? null : d.getTime()
 }
 
-function timeAgo(dateStr, nowMs) {
-  const ts = parseSeenDate(dateStr)
+function timeAgo(article, nowMs) {
+  const ts = article?.ingestedTs || parseSeenDate(article?.seendate)
   if (!ts) return ''
   const diff = Math.max(0, Math.floor((nowMs - ts) / 1000))
   if (diff < 2) return 'just now'
@@ -101,7 +101,7 @@ export default function IncidentsPanel() {
             onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
             <div style={{display:'flex',gap:7,alignItems:'center',marginBottom:4}}>
               <span style={{fontSize:9,padding:'2px 6px',borderRadius:2,fontWeight:700,background:'#2a1a1a',color:'#e05050',textTransform:'uppercase',flexShrink:0}}>{a.sourcecountry||'GLOBAL'}</span>
-              <span style={{fontSize:10,color:'#555',marginLeft:'auto',flexShrink:0}}>{timeAgo(a.seendate, nowMs)}</span>
+              <span style={{fontSize:10,color:'#555',marginLeft:'auto',flexShrink:0}}>{timeAgo(a, nowMs)}</span>
             </div>
             <div style={{fontSize:11,color:'#ddd',fontWeight:500,lineHeight:1.45,marginBottom:3}}>{a.title}</div>
             <div style={{fontSize:10,color:'#666'}}>{a.domain}</div>

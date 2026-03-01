@@ -138,6 +138,7 @@ async function fetchIncidents() {
         domain,
         sourcecountry: 'GLOBAL',
         seendate: get('pubDate') || get('dc:date') || '',
+        ingestedTs: Date.now(),
         source
       };
     }).filter(a => a.title && a.url);
