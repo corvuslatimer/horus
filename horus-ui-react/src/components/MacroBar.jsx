@@ -53,7 +53,7 @@ export default function MacroBar() {
     }
 
     load()
-    const id = setInterval(load, 5000) // all 4 refresh every 5s
+    const id = setInterval(load, 2000) // all 4 refresh every 5s
     return () => clearInterval(id)
   }, [])
 

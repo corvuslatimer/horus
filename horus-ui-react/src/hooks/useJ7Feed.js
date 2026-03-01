@@ -24,7 +24,7 @@ export default function useJ7Feed() {
     }
 
     load()
-    const id = setInterval(load, 4000)
+    const id = setInterval(load, 2000)
     return () => { active = false; clearInterval(id) }
   }, [])
 

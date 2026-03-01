@@ -189,6 +189,47 @@ OPENCLAW_SESSION_KEY=agent:main:web:horus-chat
 ```
 
 
+
+
+## Horus memory file (required)
+
+Maintain project memory in:
+
+```text
+/root/horus/MEMORY.md
+```
+
+Use it as a durable backup log of important events and changes, each with UTC date/time.
+
+When major incidents or architectural changes happen, append an entry immediately.
+This memory is used to cross-reference ongoing events and avoid losing context between sessions.
+
+## User-facing response style for Horus news queries (critical)
+
+When users ask "what's happening" or ask about events from Horus feeds:
+
+- Prioritize **news summary**, not implementation details.
+- Default format: short bullets + plain explanation.
+- Avoid exposing backend internals unless user explicitly asks.
+
+Do:
+- Give concise bullets (what happened, where, confidence caveat).
+- Explain uncertainty in normal language ("reports are mixed", "not independently confirmed yet").
+- Offer a cleaned timeline when useful.
+
+Avoid by default:
+- File/path names (`signals.ndjson`, `incidents.json`)
+- Internal architecture talk (relay, ingestion, polling loops)
+- Source pipeline/debug language unless requested
+
+Bad default style:
+- "From Horus relay right now (signals.ndjson / incidents.json)..."
+
+Good default style:
+- "Here’s what reports are saying in the last few minutes:" followed by 3–6 bullets.
+
+Only switch to technical detail if user explicitly asks for backend/source diagnostics.
+
 ## Data folder: location, purpose, and how to explain it to users
 
 Path:

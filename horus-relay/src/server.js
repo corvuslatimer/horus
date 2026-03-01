@@ -26,7 +26,10 @@ let j7TokenExpAt = null;
 const BTC_POLL_MS = Number(process.env.BTC_POLL_MS || 5000);
 const FLIGHTS_POLL_MS = Number(process.env.FLIGHTS_POLL_MS || 30000);
 const INCIDENTS_POLL_MS = Number(process.env.INCIDENTS_POLL_MS || 60000);
+const MACRO_POLL_MS = Number(process.env.MACRO_POLL_MS || 5000);
 const MAX_SIGNALS = Number(process.env.MAX_SIGNALS || 500);
+
+const HORUS_BRIDGE_PRIMER = `You are the Horus site agent. Follow /root/horus/horus-skill/SKILL.md as authoritative operating context. Keep answers concise, practical, and specific to Horus architecture (relay-first, persisted data files, no direct frontend upstream fetches unless explicitly requested). When unsure, prioritize what is currently implemented in /root/horus over generic suggestions.`;
 const FINNHUB_KEY = process.env.FINNHUB_KEY || '';
 
 const execFileAsync = promisify(execFile);
@@ -429,7 +432,8 @@ async function sendToOpenClaw(message) {
   if (!sessionKey) return null;
 
   const idempotencyKey = `horus-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-  const params = JSON.stringify({ idempotencyKey, sessionKey, message });
+  const bridgedMessage = `${HORUS_BRIDGE_PRIMER}\n\nUser message:\n${message}`;
+  const params = JSON.stringify({ idempotencyKey, sessionKey, message: bridgedMessage });
 
   const { stdout } = await execFileAsync('openclaw', [
     'gateway', 'call', 'agent',
@@ -535,7 +539,7 @@ rewriteNdjson('signals.ndjson', await readNdjson('signals.ndjson', []), MAX_SIGN
 setInterval(runBtcPoll, BTC_POLL_MS);
 setInterval(runFlightsPoll, FLIGHTS_POLL_MS);
 setInterval(runIncidentsPoll, INCIDENTS_POLL_MS);
-setInterval(runMacroPoll, 15000);
+setInterval(runMacroPoll, MACRO_POLL_MS);
 if (!j7Token) await loginJ7();
 startJ7Collector();
 

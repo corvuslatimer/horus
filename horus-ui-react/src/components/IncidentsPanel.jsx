@@ -80,7 +80,7 @@ export default function IncidentsPanel() {
         setStatus('live')
       } catch { setStatus('error') }
     }
-    load(); const id = setInterval(load, 60000); return () => clearInterval(id)
+    load(); const id = setInterval(load, 2000); return () => clearInterval(id)
   }, [])
 
   const sortedArticles = [...articles].sort((a,b) => {
