@@ -148,6 +148,109 @@ UI must receive clean assistant text or a sanitized fallback string.
 
 ## Gateway setup (short)
 
+
+## Gateway + subagent wiring (detailed)
+
+Use this when Horus in-dashboard chat must talk to the operator’s OpenClaw session.
+
+### 1) Confirm gateway is running
+
+```bash
+openclaw gateway status
+openclaw gateway start
+```
+
+If status is unknown, run:
+
+```bash
+openclaw gateway call status --json
+```
+
+### 2) Choose target session key for Horus chat
+
+Preferred default:
+
+```env
+OPENCLAW_SESSION_KEY=agent:main:web:horus-chat
+```
+
+You can route to another session if needed (telegram/web/etc), but keep one stable key for Horus UX consistency.
+
+### 3) Relay bridge method (recommended)
+
+Use local gateway CLI from relay process:
+
+```bash
+openclaw gateway call agent --json --expect-final --timeout 90000 --params '{...}'
+```
+
+Current relay uses this pattern via `sendToOpenClaw()`.
+
+Why this method:
+- avoids direct HTTP route guessing
+- uses gateway’s native routing
+- returns final assistant payload when available
+
+### 4) Required relay env
+
+```env
+HOST=0.0.0.0
+PORT=8787
+OPENCLAW_SESSION_KEY=agent:main:web:horus-chat
+```
+
+Optional (custom builds only):
+
+```env
+OPENCLAW_BASE_URL=...
+OPENCLAW_TOKEN=...
+```
+
+### 5) Frontend/relay connection
+
+Set frontend relay URL:
+
+```env
+VITE_RELAY_URL=http://<relay-host>:8787
+```
+
+Frontend must call relay only (`/api/chat`), never OpenClaw directly.
+
+### 6) Subagent guidance
+
+If using a subagent workflow behind Horus chat:
+
+- spawn with a stable label and explicit runtime
+- keep it task-scoped
+- return concise assistant text to relay
+- never return raw tool/debug JSON to user bubbles
+
+If subagent orchestration is needed, do it server-side and keep `/api/chat` response contract unchanged:
+
+```json
+{ "ok": true, "reply": { "role": "assistant", "text": "..." } }
+```
+
+### 7) Troubleshooting checklist
+
+If Horus chat says bridge unavailable:
+
+1. Check relay process is up (`:8787`).
+2. Check gateway process is up.
+3. Validate `OPENCLAW_SESSION_KEY` exists and is reachable.
+4. Run manual probe:
+   ```bash
+   openclaw gateway call agent --json --expect-final --timeout 60000 --params '{"idempotencyKey":"probe-1","sessionKey":"agent:main:web:horus-chat","message":"reply with one word: ok"}'
+   ```
+5. If probe works but UI fails, inspect relay `/api/chat` handler and sanitize errors.
+
+### 8) Response style in Horus chat
+
+- default to concise answer text
+- avoid leaking backend internals unless explicitly asked
+- no stack traces in user-facing chat
+
+
 Use OpenClaw gateway locally and point Horus relay chat bridge at the target session.
 
 ```bash
