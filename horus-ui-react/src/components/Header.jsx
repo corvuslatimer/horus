@@ -58,10 +58,6 @@ export default function Header({ feedStatus, onToggleLiveFeeds }) {
         <button onClick={onToggleLiveFeeds} style={{ cursor: 'pointer', borderRadius: 6, border: '1px solid #2a3a66', background: '#101426', color: '#cfe3ff', fontSize: 11, padding: '4px 8px' }}>
           Live Feeds
         </button>
-      </div>
-
-      <div style={{ display: 'flex', gap: 20, fontSize: 11, color: '#888', alignItems: 'center' }}>
-        <StatusItem label="FEED" status={feedStatus} />
 
         <div onMouseEnter={() => setShowPpi(true)} onMouseLeave={() => setShowPpi(false)} style={{ position: 'relative', cursor: 'default' }}>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', color: '#fbbf24' }}>
@@ -84,6 +80,11 @@ export default function Header({ feedStatus, onToggleLiveFeeds }) {
             </div>
           )}
         </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 14, fontSize: 11, color: '#888', alignItems: 'center' }}>
+        <StatusItem label="FEED" status={feedStatus} />
+
 
         <span>{time}</span>
       </div>
