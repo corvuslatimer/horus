@@ -1,110 +1,176 @@
+---
+name: horus
+description: Build, maintain, and extend Horus (local-first OSINT terminal). Use when working on Horus relay ingestion, RSS/source pipelines, macro data (Finnhub), map/feed UI behavior, agent-chat bridge, security hardening, or run/deploy reliability.
+---
+
 # Horus Skill
 
-Purpose: shared context for agents working on Horus — architecture, layout, security rules, conventions.
+Shared operating guide for agents working on **Horus**.
 
----
+## Current Architecture (authoritative)
 
-## What Horus Is
+Horus is now **backend-first**:
 
-Local-first open-source OSINT terminal for prediction market traders.
+- Relay ingests/polls upstreams on schedule
+- Relay persists data into local files (`horus-relay/data/`)
+- Frontend reads only relay endpoints (no direct upstream fetches)
 
-1. Live signal feed — real-time tweet/geo events via j7tracker websocket
-2. Map — conflict heatmap + military flights (Leaflet, no WebGL required)
-3. Polymarket panel — live odds, top markets by volume
+### Repos/paths
 
----
-
-## Repo Layout
-
-```
+```text
 horus/
-├── horus-ui/public/index.html   ← single-file frontend
-├── horus-relay/src/server.js    ← Express backend / proxy / agent bridge
-├── horus-relay/data/            ← JSON caches — NOT committed
-├── horus-relay/.env             ← secrets — NOT committed
-├── horus-relay/.env.example     ← safe template — committed
-├── horus-skill/SKILL.md         ← this file
-└── .gitignore
+├── horus-relay/
+│   ├── src/server.js
+│   ├── data/                # runtime data files (ignored)
+│   ├── .env                # secrets/local config (ignored)
+│   └── .env.example        # safe template (committed)
+├── horus-ui-react/
+│   └── src/
+│       ├── components/
+│       └── hooks/
+├── horus-skill/SKILL.md
+└── scripts/check-stack.sh
 ```
 
----
-
-## Running Locally
+## Run
 
 ```bash
-cd horus-relay && npm install && npm run dev    # relay on 127.0.0.1:8787
-cd horus-ui/public && python3 -m http.server 8080 --bind 127.0.0.1
+cd /root/horus/horus-relay && npm install && npm run dev
+cd /root/horus/horus-ui-react && npm install && npm run dev -- --host 100.83.149.17 --port 8080
 ```
 
----
+(Host can be changed; Tailscale IP above is example from this machine.)
 
-## Security Rules (mandatory)
+## Security rules (hard)
 
-1. Relay binds 127.0.0.1 only. Never change to 0.0.0.0 — relay has no auth layer.
-2. UI binds 127.0.0.1 only.
-3. Never commit .env. Rotate any credential accidentally committed.
-4. horus-relay/data/*.json is gitignored. Contains live data + chat logs.
-5. Agent chat bridge is opt-in. Safe by default if env vars not set.
-6. No API keys hardcoded in source. All secrets in .env.
+1. Keep secrets in `.env` only.
+2. Never commit `.env`, runtime data files, or tokens.
+3. Keep relay private/local unless intentionally exposed (prefer Tailscale).
+4. Return sanitized bridge errors to UI (no stack traces in chat bubbles).
+5. Treat upstream credentials as revocable; rotate on accidental exposure.
 
----
+## Data model & storage
 
-## Relay Endpoints
+### Signals
 
-GET  /health           relay health + cache status
-GET  /api/btc          BTC price (Gemini -> CoinGecko fallback)
-GET  /api/flights      military flight positions (OpenSky)
-GET  /api/snapshots    combined agent-readable snapshot
-GET  /api/chat         chat history
-POST /api/chat         send {message} to agent bridge
+- File: `horus-relay/data/signals.ndjson`
+- One JSON object per line
+- Rolling cap via `MAX_SIGNALS` (currently 100)
+- Contains mixed sources (tweets + selected fast RSS items)
 
----
+Why NDJSON: append-friendly, resilient under frequent writes, easy rolling trim.
 
-## Frontend Layout
+### Other files
 
-Three-column:
-  [SIGNAL FEED (420px)] [MAP (flex)] [POLYMARKET + AGENT CHAT (420px)]
+- `btc.json`
+- `macro.json`
+- `flights.json`
+- `incidents.json`
+- `chat.json`
 
-Header: HORUS + status dots + UTC clock
-Footer: version + "Built by CORVUS LATIMER"
+## Relay endpoints (frontend should use only these)
 
----
+- `GET /healthz`
+- `GET /api/signals`
+- `GET /api/btc`
+- `GET /api/macro`
+- `GET /api/flights`
+- `GET /api/incidents`
+- `GET /api/chat`
+- `POST /api/chat`
+- `GET /api/snapshots`
 
-## UI Conventions
+## Upstreams
 
-- Single HTML file, no build step
-- CDN: Leaflet 1.9.4 (map), deck.gl loaded but unused (WebGL fails on RDP)
-- J7 feed: browser WebSocket direct (no relay needed)
-- BTC/flights: via relay (CORS fix)
-- Polymarket: browser direct (gamma-api allows CORS)
-- Feed items clickable if URL present
-- No literal \n in tweet/feed text
-- No library names in user-facing labels
+### Free RSS (no key)
 
----
+Multi-source incidents aggregator includes Reuters/BBC/Al Jazeera/regional + FinancialJuice and others.
 
-## Env Vars
+### Finnhub (requires user key)
 
-HOST=127.0.0.1
+- Used for macro tiles (SPY/QQQ/UUP proxy)
+- Users must provide their own key in relay `.env`
+
+```env
+FINNHUB_KEY=...
+```
+
+### J7
+
+- Relay supports J7 login using username/password in `.env`
+- Auto-token flow + socket auth to ingest tweet stream into `signals.ndjson`
+
+```env
+J7_USERNAME=...
+J7_PASSWORD=...
+```
+
+
+### How users get J7 credentials (important)
+
+J7 credentials are not standard self-signup email/password.
+
+Users must:
+1. Join J7 Discord: `https://discord.gg/CEcatgcq`
+2. Go to the **get-login** channel
+3. Click the credential/login button
+4. Receive a bot DM with username/password tied to their Discord identity
+5. Place those values in relay `.env`:
+
+```env
+J7_USERNAME=...
+J7_PASSWORD=...
+```
+
+Do not hardcode shared credentials in source. Each user should use their own Discord-issued J7 login.
+
+## Frontend behavior conventions
+
+- Live signal feed: newest at top
+- Relative time labels update every second (`just now`, `3s ago`, `2m ago`)
+- Fast feeds (e.g., JPost/FinancialJuice) can trigger red flash + alert sound
+- Macro cards use integer display (no cents)
+- TradingView popup supports all tracked macro tiles
+
+## Agent chat bridge
+
+Relay chat posts to OpenClaw via gateway call (`agent`, `--expect-final`) using:
+
+```env
+OPENCLAW_SESSION_KEY=agent:main:web:horus-chat
+```
+
+UI must receive clean assistant text or a sanitized fallback string.
+
+## Environment variables (current)
+
+```env
+HOST=0.0.0.0
 PORT=8787
-OPENCLAW_BASE_URL=     # optional: gateway URL for agent bridge
-OPENCLAW_SESSION_KEY=  # optional: session key
-OPENCLAW_TOKEN=        # optional: gateway auth token
+MAX_SIGNALS=100
 
----
+BTC_POLL_MS=5000
+FLIGHTS_POLL_MS=90000
+INCIDENTS_POLL_MS=60000
 
-## Known Issues
+FINNHUB_KEY=
+J7_USERNAME=
+J7_PASSWORD=
 
-- Agent chat bridge one-way (messages reach OpenClaw but response not captured back)
-- Military filter uses callsign prefix heuristics only
-- J7 JWT token hardcoded in frontend — will expire, make configurable
-- Leaflet used as WebGL fallback (RDP software renderer)
+OPENCLAW_SESSION_KEY=agent:main:web:horus-chat
+```
 
----
+## When extending Horus
 
-## What Not To Do
+1. Prefer adding pollers/normalizers in relay, not frontend fetch hacks.
+2. Keep frontend source-agnostic (consume normalized relay payloads).
+3. Add source health markers in relay state for debugging.
+4. Keep failures degraded, not fatal (fallback + cached last-known-good).
+5. Update `.env.example` whenever adding required config.
 
-- No build tools without discussion
-- No public port exposure without relay auth
-- No emoji/glyph renders inside canvas layers
-- No library names in UI
+## Don’ts
+
+- Don’t hardcode API keys or tokens in frontend.
+- Don’t add direct third-party fetches in React components.
+- Don’t expose raw backend/tool errors to users.
+- Don’t bypass relay persistence model.

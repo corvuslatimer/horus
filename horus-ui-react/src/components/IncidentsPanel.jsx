@@ -45,7 +45,7 @@ export default function IncidentsPanel() {
       try {
         const r = await fetch(`${RELAY}/api/incidents`)
         const j = await r.json()
-        const next = j?.articles || []
+        const next = (j?.articles || []).filter(a => !['jpost','financialjuice'].includes(String(a.source || '').toLowerCase()))
 
         const keys = next.map(a => a.url || `${a.title}|${a.seendate}`)
         if (!primedRef.current) {
@@ -83,15 +83,20 @@ export default function IncidentsPanel() {
     load(); const id = setInterval(load, 60000); return () => clearInterval(id)
   }, [])
 
+  const sortedArticles = [...articles].sort((a,b) => {
+    const ta = (a?.ingestedTs || parseSeenDate(a?.seendate) || 0)
+    const tb = (b?.ingestedTs || parseSeenDate(b?.seendate) || 0)
+    return tb - ta
+  })
+
   return (
     <div style={{display:'flex',flexDirection:'column',flex:1,minHeight:0}}>
-      <div style={{padding:'9px 14px',fontSize:10,letterSpacing:2,color:'#888',textTransform:'uppercase',borderBottom:'1px solid #1a1a1a',display:'flex',justifyContent:'space-between',flexShrink:0,background: flash ? 'rgba(239,68,68,0.20)' : 'transparent',boxShadow: flash ? 'inset 0 0 0 1px rgba(239,68,68,0.6)' : 'none',transition:'all .25s ease'}}>
+      <div style={{padding:'9px 14px',fontSize:10,letterSpacing:2,color:'#888',textTransform:'uppercase',borderBottom:'1px solid #1a1a1a',display:'flex',flexShrink:0,background: flash ? 'rgba(239,68,68,0.20)' : 'transparent',boxShadow: flash ? 'inset 0 0 0 1px rgba(239,68,68,0.6)' : 'none',transition:'all .25s ease'}}>
         <span>CURRENT INCIDENTS</span>
-        <span style={{color:status==='live'?'#c8a84b':'#555'}}>{flash ? 'NEW INCIDENT' : (status==='live'?`${articles.length} articles`:status)}</span>
       </div>
       <div style={{flex:1,overflowY:'auto'}}>
-        {articles.length===0 && <div style={{padding:30,color:'#444',fontSize:11,textAlign:'center'}}>LOADING INCIDENTS…</div>}
-        {articles.map((a,i) => {
+        {sortedArticles.length===0 && <div style={{padding:30,color:'#444',fontSize:11,textAlign:'center'}}>LOADING INCIDENTS…</div>}
+        {sortedArticles.map((a,i) => {
           const itemKey = a.url || `${a.title}|${a.seendate}`
           const isNew = newIds.has(itemKey)
           return (

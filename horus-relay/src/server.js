@@ -19,11 +19,15 @@ const PORT = Number(process.env.PORT || 8787);
 
 const OPENCLAW_SESSION_KEY = process.env.OPENCLAW_SESSION_KEY || 'agent:main:web:horus-chat';
 
-const J7_TOKEN = process.env.J7_TOKEN || '';
+const J7_USERNAME = process.env.J7_USERNAME || '';
+const J7_PASSWORD = process.env.J7_PASSWORD || '';
+let j7Token = process.env.J7_TOKEN || '';
+let j7TokenExpAt = null;
 const BTC_POLL_MS = Number(process.env.BTC_POLL_MS || 5000);
 const FLIGHTS_POLL_MS = Number(process.env.FLIGHTS_POLL_MS || 30000);
 const INCIDENTS_POLL_MS = Number(process.env.INCIDENTS_POLL_MS || 60000);
 const MAX_SIGNALS = Number(process.env.MAX_SIGNALS || 500);
+const FINNHUB_KEY = process.env.FINNHUB_KEY || '';
 
 const execFileAsync = promisify(execFile);
 
@@ -53,6 +57,35 @@ async function readJson(name, fallback = null) {
   } catch {
     return fallback;
   }
+}
+async function readNdjson(name, fallback = []) {
+  try {
+    const fp = path.join(DATA_DIR, name);
+    const raw = await fs.readFile(fp, 'utf8');
+    return raw.split('\n').filter(Boolean).map(line => JSON.parse(line));
+  } catch {
+    return fallback;
+  }
+}
+
+async function appendNdjson(name, obj, maxLines = MAX_SIGNALS) {
+  await ensureDataDir();
+  const fp = path.join(DATA_DIR, name);
+  let lines = [];
+  try {
+    const raw = await fs.readFile(fp, 'utf8');
+    lines = raw.split('\n').filter(Boolean);
+  } catch {}
+  lines.push(JSON.stringify(obj));
+  if (lines.length > maxLines) lines = lines.slice(lines.length - maxLines);
+  await fs.writeFile(fp, lines.join('\n') + '\n');
+}
+
+async function rewriteNdjson(name, arr, maxLines = MAX_SIGNALS) {
+  await ensureDataDir();
+  const fp = path.join(DATA_DIR, name);
+  const lines = arr.slice(0, maxLines).map(o => JSON.stringify(o));
+  await fs.writeFile(fp, lines.join('\n') + (lines.length ? '\n' : ''));
 }
 
 function nowIso() {
@@ -112,8 +145,12 @@ async function fetchFlights() {
 async function fetchIncidents() {
   const feeds = [
     { source: 'reuters', url: 'https://www.reuters.com/arc/outboundfeeds/news-rss/?outputType=xml' },
+    { source: 'reuters-breakingviews', url: 'https://www.reuters.com/arc/outboundfeeds/rss/category/breakingviews/?outputType=xml' },
     { source: 'aljazeera', url: 'https://www.aljazeera.com/xml/rss/all.xml' },
     { source: 'bbc-world', url: 'http://feeds.bbci.co.uk/news/world/rss.xml' },
+    { source: 'defensenews', url: 'https://www.defensenews.com/arc/outboundfeeds/rss/?outputType=xml' },
+    { source: 'politico-defense', url: 'http://rss.politico.com/defense.xml' },
+    { source: 'bloomberg-markets', url: 'https://www.bloomberg.com/feeds/markets/news.rss' },
     { source: 'jpost', url: 'https://www.jpost.com/rss/rssfeedsfrontpage.aspx' },
     { source: 'timesofisrael', url: 'https://www.timesofisrael.com/feed/' },
     { source: 'kyiv-independent', url: 'https://kyivindependent.com/news-archive/rss/' },
@@ -195,6 +232,47 @@ async function fetchIncidents() {
 }
 
 
+
+async function fetchMacro() {
+  const out = { ts: Date.now(), iso: nowIso(), symbols: {} };
+  if (!FINNHUB_KEY) return out;
+
+  const targets = [
+    { key: 'SPY', symbol: 'SPY' },
+    { key: 'QQQ', symbol: 'QQQ' },
+    { key: 'DXY', symbol: 'UUP' }
+  ];
+
+  const settled = await Promise.allSettled(targets.map(async (t) => {
+    const r = await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(t.symbol)}&token=${FINNHUB_KEY}`);
+    if (!r.ok) throw new Error(`${t.symbol} status ${r.status}`);
+    const j = await r.json();
+    return { key: t.key, quote: j };
+  }));
+
+  for (const row of settled) {
+    if (row.status === 'fulfilled') {
+      const q = row.value.quote || {};
+      out.symbols[row.value.key] = {
+        current: Number(q.c || 0),
+        change: Number(q.d || 0),
+        percent: Number(q.dp || 0)
+      };
+    }
+  }
+  return out;
+}
+
+async function runMacroPoll() {
+  try {
+    const data = await fetchMacro();
+    await writeJson('macro.json', data);
+    state.status.pollers.macro = { ok: true, at: Date.now(), symbols: Object.keys(data.symbols || {}).length };
+  } catch (e) {
+    state.status.pollers.macro = { ok: false, at: Date.now(), err: String(e?.message || e) };
+  }
+}
+
 // ---------- polling workers ----------
 async function runBtcPoll() {
   try {
@@ -220,16 +298,43 @@ async function runIncidentsPoll() {
   try {
     const data = await fetchIncidents();
     await writeJson('incidents.json', data);
+    await mergeFastRssIntoSignals();
     state.status.pollers.incidents = { ok: true, at: Date.now(), source: data.source, count: data.articles.length };
   } catch (e) {
     state.status.pollers.incidents = { ok: false, at: Date.now(), err: String(e?.message || e) };
   }
 }
 
-// ---------- J7 signals collector ----------
+// ---------- J7 auth + signals collector ----------
+async function loginJ7() {
+  if (!J7_USERNAME || !J7_PASSWORD) return null;
+  try {
+    const r = await fetch('https://j7tracker.io/api/login', {
+      method: 'POST',
+      headers: {
+        'accept': '*/*',
+        'content-type': 'application/json',
+        'origin': 'https://j7tracker.io'
+      },
+      body: JSON.stringify({ username: J7_USERNAME, password: J7_PASSWORD, ref_code: null })
+    });
+    if (!r.ok) throw new Error(`login status ${r.status}`);
+    const j = await r.json();
+    const token = j?.token || j?.access_token || j?.jwt || j?.data?.token || null;
+    if (!token) throw new Error('no token in login response');
+    j7Token = token;
+    j7TokenExpAt = Date.now() + (23 * 60 * 60 * 1000); // refresh before 24h expiry
+    state.status.j7.lastError = null;
+    return token;
+  } catch (e) {
+    state.status.j7.lastError = `login_failed: ${String(e?.message || e)}`;
+    return null;
+  }
+}
+
 function startJ7Collector() {
-  if (!J7_TOKEN) {
-    state.status.j7.lastError = 'J7_TOKEN missing';
+  if (!j7Token && !J7_USERNAME) {
+    state.status.j7.lastError = 'J7 token/credentials missing';
     return;
   }
 
@@ -240,7 +345,7 @@ function startJ7Collector() {
       state.status.j7.connected = true;
       state.status.j7.lastConnectAt = Date.now();
       ws.send('40');
-      setTimeout(() => ws.send(`42["user_connected","${J7_TOKEN}"]`), 500);
+      setTimeout(() => { if (j7Token) ws.send(`42["user_connected","${j7Token}"]`); }, 500);
     });
 
     ws.on('message', async (buf) => {
@@ -257,7 +362,7 @@ function startJ7Collector() {
         const data = parsed[1];
         if (ev !== 'tweet' || !data?.text) return;
 
-        const current = await readJson('signals.json', { source: 'j7', signals: [] });
+        const currentSignals = await readNdjson('signals.ndjson', []);
         const sig = {
           id: data.id || data.tweetId || null,
           type: 'tweet',
@@ -268,21 +373,18 @@ function startJ7Collector() {
           iso: nowIso()
         };
 
-        const exists = current.signals.some(s => (sig.id && s.id === sig.id) || (s.author === sig.author && s.text === sig.text));
+        const exists = currentSignals.some(s => (sig.id && s.id === sig.id) || (s.author === sig.author && s.text === sig.text));
         if (!exists) {
-          current.signals.unshift(sig);
-          current.signals = current.signals.slice(0, MAX_SIGNALS);
-          current.source = 'j7';
-          current.ts = Date.now();
-          await writeJson('signals.json', current);
+          await appendNdjson('signals.ndjson', sig, MAX_SIGNALS);
         }
       } catch {
         // ignore malformed packet
       }
     });
 
-    ws.on('close', () => {
+    ws.on('close', async () => {
       state.status.j7.connected = false;
+      if (!j7Token || (j7TokenExpAt && Date.now() > j7TokenExpAt)) await loginJ7();
       setTimeout(connect, 3000);
     });
 
@@ -293,6 +395,32 @@ function startJ7Collector() {
   };
 
   connect();
+}
+
+
+async function mergeFastRssIntoSignals() {
+  const incidents = await readJson('incidents.json', { articles: [] });
+  const fast = (incidents.articles || [])
+    .filter(a => ['jpost', 'financialjuice'].includes(String(a.source || '').toLowerCase()))
+    .slice(0, 120)
+    .map(a => ({
+      id: `rss-${a.url || `${a.title}|${a.seendate}`}`,
+      type: 'geo',
+      author: a.source === 'financialjuice' ? 'FinancialJuice' : 'Jerusalem Post',
+      text: a.title,
+      url: a.url,
+      ts: a.ingestedTs || Date.now(),
+      iso: new Date(a.ingestedTs || Date.now()).toISOString(),
+      source: String(a.source || '').toLowerCase(),
+      fastAlert: true
+    }));
+
+  const curSignals = await readNdjson('signals.ndjson', []);
+  const map = new Map(curSignals.map(x => [x.id, x]));
+  for (const f of fast) if (!map.has(f.id)) map.set(f.id, f);
+
+  const merged = [...map.values()].sort((a,b) => (b.ts || 0) - (a.ts || 0)).slice(0, MAX_SIGNALS);
+  await rewriteNdjson('signals.ndjson', merged, MAX_SIGNALS);
 }
 
 // ---------- chat bridge ----------
@@ -329,6 +457,11 @@ app.get('/api/btc', async (_req, res) => {
   res.json(btc);
 });
 
+app.get('/api/macro', async (_req, res) => {
+  const macro = await readJson('macro.json', { ts: null, symbols: {} });
+  res.json(macro);
+});
+
 app.get('/api/flights', async (_req, res) => {
   const flights = await readJson('flights.json', { source: 'none', count: 0, flights: [], ts: null });
   res.json(flights);
@@ -345,19 +478,20 @@ app.get('/api/markets', async (_req, res) => {
 });
 
 app.get('/api/signals', async (_req, res) => {
-  const sig = await readJson('signals.json', { source: 'none', signals: [], ts: null });
-  res.json(sig);
+  const signals = await readNdjson('signals.ndjson', []);
+  res.json({ source: 'mixed', signals: signals.sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0, MAX_SIGNALS), ts: Date.now(), iso: nowIso() });
 });
 
 app.get('/api/snapshots', async (_req, res) => {
-  const [btc, flights, incidents, signals, chat] = await Promise.all([
+  const [btc, macro, flights, incidents, signals, chat] = await Promise.all([
     readJson('btc.json', null),
+    readJson('macro.json', null),
     readJson('flights.json', null),
     readJson('incidents.json', null),
-    readJson('signals.json', null),
+    (async () => ({ source: 'mixed', signals: await readNdjson('signals.ndjson', []), ts: Date.now() }))(),
     readJson('chat.json', { messages: [] })
   ]);
-  res.json({ ts: Date.now(), btc, flights, incidents, signals, chat, status: state.status });
+  res.json({ ts: Date.now(), btc, macro, flights, incidents, signals, chat, status: state.status });
 });
 
 app.get('/api/chat', async (_req, res) => {
@@ -394,12 +528,15 @@ await Promise.allSettled([
   runBtcPoll(),
   runFlightsPoll(),
   runIncidentsPoll(),
-  writeJson('signals.json', await readJson('signals.json', { source: 'j7', signals: [], ts: Date.now() }))
+  runMacroPoll(),
+rewriteNdjson('signals.ndjson', await readNdjson('signals.ndjson', []), MAX_SIGNALS)
 ]);
 
 setInterval(runBtcPoll, BTC_POLL_MS);
 setInterval(runFlightsPoll, FLIGHTS_POLL_MS);
 setInterval(runIncidentsPoll, INCIDENTS_POLL_MS);
+setInterval(runMacroPoll, 15000);
+if (!j7Token) await loginJ7();
 startJ7Collector();
 
 app.listen(PORT, HOST, () => {

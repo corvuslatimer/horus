@@ -13,3 +13,6 @@ horus-relay/data/*.json
 
 # node
 **/node_modules/
+
+# runtime relay data
+horus-relay/data/

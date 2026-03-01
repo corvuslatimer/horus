@@ -3,12 +3,14 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
 const HOTSPOTS = [
-  {name:'Israel/Gaza',lat:32,lng:35,severity:0.9},
-  {name:'Iran',lat:35.7,lng:51.4,severity:1.0},
-  {name:'Ukraine',lat:49,lng:32,severity:0.85},
-  {name:'Kuwait',lat:29.3,lng:47.9,severity:0.65},
-  {name:'Yemen',lat:15,lng:42,severity:0.7},
-  {name:'Sudan',lat:15.5,lng:32.5,severity:0.55},
+  {name:'Iran',lat:35.7,lng:51.4,severity:1.0,risk:'HIGH',note:'Leadership instability / strike risk'},
+  {name:'Israel / Gaza',lat:31.5,lng:34.5,severity:0.95,risk:'HIGH',note:'Active conflict zone'},
+  {name:'Strait of Hormuz',lat:26.5,lng:56.5,severity:0.88,risk:'HIGH',note:'Energy chokepoint risk'},
+  {name:'Lebanon',lat:33.9,lng:35.8,severity:0.76,risk:'ELEVATED',note:'Border escalation risk'},
+  {name:'Red Sea / Yemen',lat:15.0,lng:42.0,severity:0.74,risk:'ELEVATED',note:'Shipping disruption risk'},
+  {name:'Ukraine',lat:49,lng:32,severity:0.85,risk:'HIGH',note:'Ongoing war theater'},
+  {name:'Taiwan Strait',lat:24.2,lng:121.0,severity:0.62,risk:'WATCH',note:'Strategic tension zone'},
+  {name:'Kuwait',lat:29.3,lng:47.9,severity:0.65,risk:'ELEVATED',note:'Regional strike spillover'}
 ]
 const MIL = ['RCH','CMB','RRR','CNV','LAGR','QID','NATO','FORTE','DUKE','HOMER','MOOSE','TITAN','GHOST']
 const norm = c => (c||'').trim().toUpperCase()
@@ -25,7 +27,22 @@ export default function MapPanel() {
     if (mapObjRef.current) return
     const map = L.map(mapRef.current, {zoomControl:true}).setView([25,38],2)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:8,minZoom:2,attribution:'© OSM'}).addTo(map)
-    HOTSPOTS.forEach(h => L.circle([h.lat,h.lng],{radius:50000+h.severity*70000,color:'#ef4444',weight:1,fillColor:'#ef4444',fillOpacity:0.28}).bindTooltip(h.name).addTo(map))
+    HOTSPOTS.forEach(h => {
+      const color = h.risk === 'HIGH' ? '#ef4444' : h.risk === 'ELEVATED' ? '#f59e0b' : '#38bdf8'
+      const ring = L.circle([h.lat,h.lng], {
+        radius: 45000 + h.severity * 80000,
+        color,
+        weight: 1.4,
+        fillColor: color,
+        fillOpacity: 0.20
+      })
+      const html = `<div style="min-width:220px;line-height:1.35">
+        <div style="font-weight:700;color:#fff;margin-bottom:4px">${h.name}</div>
+        <div style="font-size:11px;color:#ddd;margin-bottom:4px">${h.note}</div>
+        <div style="font-size:10px;color:${color};font-weight:700">RISK: ${h.risk}</div>
+      </div>`
+      ring.bindTooltip(html, { direction: 'top', opacity: 0.97, className: 'horus-zone-tip' }).addTo(map)
+    })
     flightLayerRef.current = L.layerGroup().addTo(map)
     trailLayerRef.current = L.layerGroup().addTo(map)
     mapObjRef.current = map
