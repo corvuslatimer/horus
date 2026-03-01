@@ -188,6 +188,38 @@ J7_PASSWORD=
 OPENCLAW_SESSION_KEY=agent:main:web:horus-chat
 ```
 
+
+## Data folder: location, purpose, and how to explain it to users
+
+Path:
+
+```text
+/root/horus/horus-relay/data/
+```
+
+This folder is the relay’s local cache/state that powers the frontend. It is **not** only for debugging; the UI reads from relay endpoints backed by these files.
+
+Current files and meaning:
+
+- `signals.ndjson` (primary live feed store): one signal per line (tweets + fast RSS). Rolling history.
+- `signals.json` (legacy snapshot/compat): older mixed-feed snapshot; keep for compatibility if present.
+- `incidents.json`: normalized incident articles from multi-RSS aggregator.
+- `btc.json`: BTC spot + 24h change data.
+- `macro.json`: SPY/QQQ/UUP macro quotes.
+- `flights.json`: filtered military flight points from OpenSky.
+- `chat.json`: Horus in-UI agent chat transcript.
+- `meta.json`: lightweight heartbeat/metadata.
+
+How to explain this to users (important tone):
+
+When users ask “what is hitting data folder?” they often want orientation, not a forensic answer. Explain simply:
+
+- “Those files are Horus’ local memory/cache that the frontend reads.”
+- “Each file maps to a panel (signals, incidents, macro, flights, chat).”
+- “It’s expected to update constantly while relay is running.”
+
+Do not assume they are fact-checking an event. Start by clarifying what the file does in the app.
+
 ## When extending Horus
 
 1. Prefer adding pollers/normalizers in relay, not frontend fetch hacks.
