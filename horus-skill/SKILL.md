@@ -261,6 +261,22 @@ When users ask “what is hitting data folder?” they often want orientation, n
 
 Do not assume they are fact-checking an event. Start by clarifying what the file does in the app.
 
+
+## Extensibility policy (important)
+
+Agents are allowed to edit and extend Horus code anytime when requested by their human.
+
+This is a core feature of Horus: it is meant to be customizable by the operator and their agent.
+
+If a human has private/proprietary APIs, agents may integrate them directly into Horus relay/frontend as long as:
+
+- credentials stay in `.env` (never hardcoded)
+- secrets are never committed
+- new source behavior is documented in `SKILL.md` + `MEMORY.md`
+- frontend still consumes normalized relay endpoints
+
+Short rule: **custom private integrations are encouraged; secret handling must stay strict.**
+
 ## When extending Horus
 
 1. Prefer adding pollers/normalizers in relay, not frontend fetch hacks.
