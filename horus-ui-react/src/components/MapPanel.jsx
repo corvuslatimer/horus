@@ -13,6 +13,7 @@ const HOTSPOTS = [
 const MIL = ['RCH','CMB','RRR','CNV','LAGR','QID','NATO','FORTE','DUKE','HOMER','MOOSE','TITAN','GHOST']
 const norm = c => (c||'').trim().toUpperCase()
 const trackHistory = {}
+const RELAY = import.meta.env.VITE_RELAY_URL || 'http://localhost:8787'
 
 export default function MapPanel() {
   const mapRef = useRef(null)
@@ -31,7 +32,7 @@ export default function MapPanel() {
 
     const load = async () => {
       try {
-        const r = await fetch('http://localhost:8787/api/flights')
+        const r = await fetch(`${RELAY}/api/flights`)
         const j = await r.json()
         flightLayerRef.current.clearLayers()
         trailLayerRef.current.clearLayers()
