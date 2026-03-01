@@ -1,22 +1,38 @@
 # Horus
 
-Local-first open-source OSINT terminal for prediction market traders.
+Horus is a **local-first, open-source OSINT terminal** built for fast situational awareness.
 
-## Layout
+It combines live signals, incident aggregation, military flight context, market overlays, and an integrated agent chat into one operator-style interface.
 
-- `horus-ui-react/` — React/Vite frontend terminal
-- `horus-relay/` — backend handler/relayer (polls sources, persists data)
-- `horus-skill/` — builder/agent operating notes
+![Horus dashboard](docs/images/horus-dashboard.jpg)
+
+---
+
+## Why Horus
+
+- **Local-first runtime** (you control the stack)
+- **Relay-backed architecture** (frontend reads normalized `/api/*` only)
+- **Cross-channel agent workflows** (OpenClaw + in-dashboard chat)
+- **Modular map layers** (hotspots, routes, chokepoints, bases, cables, pipelines, conflicts)
+
+---
+
+## Repository layout
+
+- `horus-ui-react/` — React + Vite frontend
+- `horus-relay/` — data relay + pollers + bridge endpoints
+- `horus-skill/` — operator/agent behavior docs
+- `docs/` — assets and documentation
+
+---
 
 ## Quickstart
 
-### Default install path (recommended)
+### Recommended install flow (OpenClaw)
 
-Horus is meant to run **locally by default** with an **OpenClaw agent**.
+Horus is designed to run locally with an OpenClaw agent.
 
-Install command for humans:
-
-> text your agent: `install & clone https://github.com/corvuslatimer/horus.git`
+> Text your agent: `install & clone https://github.com/corvuslatimer/horus.git`
 
 ### Manual local run
 
@@ -32,15 +48,25 @@ npm install
 npm run dev -- --host 127.0.0.1 --port 8080
 ```
 
+---
+
 ## Runtime model
 
-- Frontend talks only to relay (`/api/*`)
-- Relay polls upstream sources and stores data under `horus-relay/data/`
-- Signals are stored in `signals.ndjson` (rolling cap)
-- Keys/secrets are loaded from `horus-relay/.env`
+- Frontend calls relay endpoints only (`/api/*`)
+- Relay polls upstream sources and persists local state in `horus-relay/data/`
+- Live signal stream is stored in `signals.ndjson` (rolling cap)
+- Secrets stay in relay runtime configuration
 
-## Security
+---
 
-- Never commit `.env`
-- Never commit `horus-relay/data/*`
-- Prefer Tailscale/private networking over public exposure
+## Security baseline
+
+- Never commit credentials
+- Never commit runtime `horus-relay/data/*`
+- Prefer private networking for operator deployments
+
+---
+
+## Status
+
+Horus is under active development and evolving quickly.
