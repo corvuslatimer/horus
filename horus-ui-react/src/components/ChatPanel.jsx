@@ -24,7 +24,7 @@ export default function ChatPanel() {
   }
 
   return (
-    <div style={{flex:2,display:'flex',flexDirection:'column',borderTop:'1px solid #1a1a1a',background:'#0b0b0b',minHeight:170}}>
+    <div style={{flex:'0 0 180px',display:'flex',flexDirection:'column',borderTop:'1px solid #1a1a1a',background:'#0b0b0b',minHeight:0}}>
       <div style={{padding:'8px 10px',fontSize:10,letterSpacing:2,color:'#888',borderBottom:'1px solid #1a1a1a',flexShrink:0}}>AGENT CHAT</div>
       <div ref={logRef} style={{flex:1,overflowY:'auto',padding:'8px 10px',display:'flex',flexDirection:'column',gap:6}}>
         {messages.map((m,i) => (

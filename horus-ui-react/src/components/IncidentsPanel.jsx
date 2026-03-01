@@ -4,9 +4,14 @@ const GDELT_URL = 'https://api.gdeltproject.org/api/v2/doc/doc?query=(war%20OR%2
 
 function timeAgo(dateStr) {
   if (!dateStr) return ''
-  // GDELT format: YYYYMMDDHHMMSS
-  const s = String(dateStr)
-  const d = new Date(`${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}T${s.slice(8,10)}:${s.slice(10,12)}:${s.slice(12,14)}Z`)
+  let d
+  const s = String(dateStr).replace(/[^0-9T:Z\-]/g,'').trim()
+  if (/^\d{14}$/.test(s)) {
+    d = new Date(`${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}T${s.slice(8,10)}:${s.slice(10,12)}:${s.slice(12,14)}Z`)
+  } else {
+    d = new Date(dateStr)
+  }
+  if (isNaN(d)) return ''
   const diff = Math.floor((Date.now() - d) / 60000)
   if (diff < 1) return 'just now'
   if (diff < 60) return `${diff}m ago`
