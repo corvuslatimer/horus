@@ -145,6 +145,31 @@ OPENCLAW_SESSION_KEY=agent:main:web:horus-chat
 
 UI must receive clean assistant text or a sanitized fallback string.
 
+
+## Gateway setup (short)
+
+Use OpenClaw gateway locally and point Horus relay chat bridge at the target session.
+
+```bash
+openclaw gateway status
+openclaw gateway start   # if not running
+```
+
+Relay `.env` essentials:
+
+```env
+OPENCLAW_SESSION_KEY=agent:main:web:horus-chat
+```
+
+(Optional) if using HTTP gateway calls in custom builds:
+
+```env
+OPENCLAW_BASE_URL=http://127.0.0.1:18789
+OPENCLAW_TOKEN=<gateway token>
+```
+
+In current Horus relay, bridge uses local `openclaw gateway call agent` (no direct HTTP required).
+
 ## Environment variables (current)
 
 ```env
