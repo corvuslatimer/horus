@@ -10,6 +10,16 @@ Local-first open-source OSINT terminal for prediction market traders.
 
 ## Quickstart
 
+### Default install path (recommended)
+
+Horus is meant to run **locally by default** with an **OpenClaw agent**.
+
+Install command for humans:
+
+> text your agent: `install & clone https://github.com/corvuslatimer/horus.git`
+
+### Manual local run
+
 ```bash
 # terminal 1
 cd horus-relay
