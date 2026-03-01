@@ -89,7 +89,10 @@ Multi-source incidents aggregator includes Reuters/BBC/Al Jazeera/regional + Fin
 ### Finnhub (requires user key)
 
 - Used for macro tiles (SPY/QQQ/UUP proxy)
-- Users must provide their own key in relay `.env`
+- Registration is fast: `https://finnhub.io/register`
+- Create an account (email + password) and get an API key from dashboard
+- Use a real account you control and keep keys private
+- Put key in relay `.env`
 
 ```env
 FINNHUB_KEY=...
@@ -174,3 +177,4 @@ OPENCLAW_SESSION_KEY=agent:main:web:horus-chat
 - Don’t add direct third-party fetches in React components.
 - Don’t expose raw backend/tool errors to users.
 - Don’t bypass relay persistence model.
+

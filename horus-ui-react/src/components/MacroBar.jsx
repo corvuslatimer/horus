@@ -13,32 +13,48 @@ export default function MacroBar() {
   const [macro, setMacro] = useState({ symbols: {} })
   const [showChart, setShowChart] = useState(false)
   const [chartKey, setChartKey] = useState('BTC')
-  const [flash, setFlash] = useState(false)
-  const [shake, setShake] = useState(false)
+  const [flashMap, setFlashMap] = useState({ BTC:false, SPY:false, QQQ:false, DXY:false })
+  const [shakeMap, setShakeMap] = useState({ BTC:false, SPY:false, QQQ:false, DXY:false })
 
   useEffect(() => {
+    const triggerAnim = (k) => {
+      setFlashMap(prev => ({ ...prev, [k]: true }))
+      setShakeMap(prev => ({ ...prev, [k]: true }))
+      setTimeout(() => setFlashMap(prev => ({ ...prev, [k]: false })), 260)
+      setTimeout(() => setShakeMap(prev => ({ ...prev, [k]: false })), 520)
+    }
+
     const load = async () => {
       try {
         const [rb, rm] = await Promise.all([
           fetch(`${RELAY}/api/btc`),
           fetch(`${RELAY}/api/macro`)
         ])
-        const next = await rb.json()
-        const m = await rm.json()
-        setMacro(m || { symbols: {} })
+        const nextBtc = await rb.json()
+        const nextMacro = await rm.json()
+
         setBtc(prev => {
-          const prevPrice = Number(prev?.last || 0)
-          const nextPrice = Number(next?.last || 0)
-          if (prev && prevPrice > 0 && nextPrice > 0 && Math.floor(prevPrice) !== Math.floor(nextPrice)) {
-            setFlash(true); setShake(true)
-            setTimeout(() => setFlash(false), 260)
-            setTimeout(() => setShake(false), 520)
+          const a = Math.floor(Number(prev?.last || 0))
+          const b = Math.floor(Number(nextBtc?.last || 0))
+          if (prev && a > 0 && b > 0 && a !== b) triggerAnim('BTC')
+          return nextBtc
+        })
+
+        setMacro(prev => {
+          const keys = ['SPY','QQQ','DXY']
+          for (const k of keys) {
+            const a = Math.floor(Number(prev?.symbols?.[k]?.current || 0))
+            const b = Math.floor(Number(nextMacro?.symbols?.[k]?.current || 0))
+            if (a > 0 && b > 0 && a !== b) triggerAnim(k)
           }
-          return next
+          return nextMacro || { symbols: {} }
         })
       } catch {}
     }
-    load(); const id = setInterval(load, 5000); return () => clearInterval(id)
+
+    load()
+    const id = setInterval(load, 5000) // all 4 refresh every 5s
+    return () => clearInterval(id)
   }, [])
 
   useEffect(() => {
@@ -100,10 +116,10 @@ export default function MacroBar() {
       <div style={{borderTop:'1px solid #1a1a1a',background:'#0b0b0b',padding:'8px 10px',flexShrink:0}}>
         <div style={{fontSize:9,letterSpacing:2,color:'#888',marginBottom:7}}>MAJOR INDICES</div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
-          <MacroItem label="BTCUSD" value={btc?`$${fmtInt(btc.last)}`:'--'} change={typeof pct==='number'?`${up?'+':''}${(pct*100).toFixed(2)}%`:null} up={up} onClick={() => openChart('BTC')} flash={flash} shake={shake} />
-          <MacroItem label="SPY" value={fmtInt(macro?.symbols?.SPY?.current)} change={fmtPct(macro?.symbols?.SPY?.percent)} up={Number(macro?.symbols?.SPY?.percent || 0) >= 0} onClick={() => openChart('SPY')} />
-          <MacroItem label="QQQ" value={fmtInt(macro?.symbols?.QQQ?.current)} change={fmtPct(macro?.symbols?.QQQ?.percent)} up={Number(macro?.symbols?.QQQ?.percent || 0) >= 0} onClick={() => openChart('QQQ')} />
-          <MacroItem label="UUP" value={fmtInt(macro?.symbols?.DXY?.current)} change={fmtPct(macro?.symbols?.DXY?.percent)} up={Number(macro?.symbols?.DXY?.percent || 0) >= 0} onClick={() => openChart('DXY')} />
+          <MacroItem label="BTCUSD" value={btc?`$${fmtInt(btc.last)}`:'--'} change={typeof pct==='number'?`${up?'+':''}${(pct*100).toFixed(2)}%`:null} up={up} onClick={() => openChart('BTC')} flash={flashMap.BTC} shake={shakeMap.BTC} />
+          <MacroItem label="SPY" value={`$${fmtInt(macro?.symbols?.SPY?.current)}`} change={fmtPct(macro?.symbols?.SPY?.percent)} up={Number(macro?.symbols?.SPY?.percent || 0) >= 0} onClick={() => openChart('SPY')} flash={flashMap.SPY} shake={shakeMap.SPY} />
+          <MacroItem label="QQQ" value={`$${fmtInt(macro?.symbols?.QQQ?.current)}`} change={fmtPct(macro?.symbols?.QQQ?.percent)} up={Number(macro?.symbols?.QQQ?.percent || 0) >= 0} onClick={() => openChart('QQQ')} flash={flashMap.QQQ} shake={shakeMap.QQQ} />
+          <MacroItem label="UUP" value={`$${fmtInt(macro?.symbols?.DXY?.current)}`} change={fmtPct(macro?.symbols?.DXY?.percent)} up={Number(macro?.symbols?.DXY?.percent || 0) >= 0} onClick={() => openChart('DXY')} flash={flashMap.DXY} shake={shakeMap.DXY} />
         </div>
       </div>
 
