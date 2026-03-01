@@ -9,7 +9,7 @@ const CHART_SYMBOL = {
   AAPL: 'NASDAQ:AAPL',
   MSFT: 'NASDAQ:MSFT',
   NVDA: 'NASDAQ:NVDA',
-  VIX: 'CAPITALCOM:VIX',
+  SOL: 'BINANCE:SOLUSDT',
   GOLD: 'PEPPERSTONE:XAUUSD',
   OIL: 'AMEX:OILT',
 }
@@ -22,7 +22,7 @@ const MARKET_ITEMS = [
   { key: 'AAPL', label: 'AAPL', prefix: '$' },
   { key: 'MSFT', label: 'MSFT', prefix: '$' },
   { key: 'NVDA', label: 'NVDA', prefix: '$' },
-  { key: 'VIX', label: 'VIX', prefix: '' },
+  { key: 'SOL', label: 'SOLUSD', prefix: '$' },
   { key: 'GOLD', label: 'GOLD', prefix: '$' },
   { key: 'OIL', label: 'OIL', prefix: '$' },
 ]
@@ -35,15 +35,20 @@ export default function MacroBar() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [rm, rb] = await Promise.all([
+        const [rm, rb, rs] = await Promise.all([
           fetch(`${RELAY}/api/macro`),
-          fetch(`${RELAY}/api/btc`)
+          fetch(`${RELAY}/api/btc`),
+          fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd&include_24hr_change=true')
         ])
         const j = await rm.json()
         const b = await rb.json()
+        const sol = await rs.json()
         const next = { ...(j?.symbols || {}) }
         if (Number.isFinite(Number(b?.last))) {
           next.BTC = { current: Number(b.last), percent: Number.isFinite(Number(b?.percentChange24h)) ? Number(b.percentChange24h) * 100 : next?.BTC?.percent ?? null }
+        }
+        if (Number.isFinite(Number(sol?.solana?.usd))) {
+          next.SOL = { current: Number(sol.solana.usd), percent: Number.isFinite(Number(sol?.solana?.usd_24h_change)) ? Number(sol.solana.usd_24h_change) : null }
         }
         setSymbols(next)
       } catch {}
