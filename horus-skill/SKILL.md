@@ -395,3 +395,8 @@ Short rule: **custom private integrations are encouraged; secret handling must s
 - Don’t expose raw backend/tool errors to users.
 - Don’t bypass relay persistence model.
 
+
+
+## Sub-agent companion
+
+Use `SubagentSKILL.md` for delegated runs and sub-agent behavior contracts.
