@@ -3,6 +3,8 @@ import cors from 'cors';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -11,10 +13,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const PORT = process.env.PORT || 8787;
+const execFileAsync = promisify(execFile);
 const HOST = process.env.HOST || '127.0.0.1';
 const OPENCLAW_BASE_URL = process.env.OPENCLAW_BASE_URL || '';
 const OPENCLAW_TOKEN = process.env.OPENCLAW_TOKEN || '';
-const OPENCLAW_SESSION_KEY = process.env.OPENCLAW_SESSION_KEY || '';
+const OPENCLAW_SESSION_KEY = process.env.OPENCLAW_SESSION_KEY || 'agent:main:telegram:direct:5939904603';
 
 const app = express();
 app.use(cors());
@@ -85,17 +88,34 @@ async function refreshCaches() {
 
 
 async function sendToOpenClaw(message) {
-  if (!OPENCLAW_BASE_URL || !OPENCLAW_SESSION_KEY) return null;
-  const headers = { 'Content-Type': 'application/json' };
-  if (OPENCLAW_TOKEN) headers['Authorization'] = `Bearer ${OPENCLAW_TOKEN}`;
+  const sessionKey = OPENCLAW_SESSION_KEY;
+  if (!sessionKey) return null;
 
-  const url = `${OPENCLAW_BASE_URL.replace(/\/$/, '')}/api/tools/sessions_send`;
-  const body = { sessionKey: OPENCLAW_SESSION_KEY, message, timeoutSeconds: 45 };
-  const r = await fetch(url, { method:'POST', headers, body: JSON.stringify(body) });
-  if (!r.ok) throw new Error(`openclaw bridge status ${r.status}`);
-  const j = await r.json();
-  // best-effort extract text
-  return j?.text || j?.result?.text || j?.output || null;
+  // Prefer local CLI gateway call (no manual token plumbing needed)
+  try {
+    const params = JSON.stringify({ sessionKey, message, timeoutSeconds: 45 });
+    const { stdout } = await execFileAsync('openclaw', [
+      'gateway', 'call', 'sessions_send', '--json', '--timeout', '70000', '--params', params
+    ], { timeout: 75000, maxBuffer: 2 * 1024 * 1024 });
+
+    const parsed = JSON.parse(stdout || '{}');
+    const txt = parsed?.result?.message?.content?.[0]?.text
+      || parsed?.result?.text
+      || parsed?.text
+      || null;
+    return txt;
+  } catch (_) {
+    // fallback HTTP bridge if explicitly configured
+    if (!OPENCLAW_BASE_URL) return null;
+    const headers = { 'Content-Type': 'application/json' };
+    if (OPENCLAW_TOKEN) headers['Authorization'] = `Bearer ${OPENCLAW_TOKEN}`;
+    const url = `${OPENCLAW_BASE_URL.replace(/\/$/, '')}/api/tools/sessions_send`;
+    const body = { sessionKey, message, timeoutSeconds: 45 };
+    const r = await fetch(url, { method:'POST', headers, body: JSON.stringify(body) });
+    if (!r.ok) throw new Error(`openclaw bridge status ${r.status}`);
+    const j = await r.json();
+    return j?.text || j?.result?.text || j?.output || null;
+  }
 }
 
 app.get('/health', async (_req, res) => res.json({ ok:true, service:'horus-relay', ts:Date.now(), cache: await readJson('meta.json', {}) }));
@@ -149,7 +169,7 @@ app.post('/api/chat', async (req, res) => {
     const bridged = await sendToOpenClaw(text);
     if (bridged && String(bridged).trim()) replyText = String(bridged).trim();
     else if (OPENCLAW_BASE_URL && OPENCLAW_SESSION_KEY) replyText = 'Message sent to OpenClaw session. Awaiting response payload.';
-    else replyText = 'Logged. Set OPENCLAW_BASE_URL + OPENCLAW_SESSION_KEY to enable live bridge.';
+    else replyText = 'Message queued, but no bridge response yet.';
   } catch (e) {
     replyText = 'Bridge error: ' + String(e?.message || e);
   }

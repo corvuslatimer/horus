@@ -15,7 +15,7 @@
     *{margin:0;padding:0;box-sizing:border-box}
     body{background:#0a0a0a;color:#f0f0f0;font-family:'Inter',sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
     header{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid #1e1e1e;background:#0d0d0d}
-    .logo{display:flex;gap:10px;align-items:center}.logo-mark{width:24px;height:24px;border:2px solid #d4b15a;border-radius:999px;display:flex;align-items:center;justify-content:center;color:#d4b15a;font-size:11px;line-height:1;box-shadow:0 0 10px rgba(212,177,90,.18)}.logo-stack{display:flex;flex-direction:column;gap:2px}.logo-text{font-weight:700;letter-spacing:4px;color:#e7c46a;font-size:18px;line-height:1}.logo-tag{font-size:10px;color:#7f7f7f;letter-spacing:.4px}.logo-sub{display:none}
+    .logo{display:flex;gap:10px;align-items:center}.logo-eye-mark{font-size:20px;filter:drop-shadow(0 0 5px rgba(212,177,90,.5));line-height:1}.logo-text{font-weight:700;letter-spacing:5px;color:#c8a84b;font-size:20px;line-height:1}.logo-sub{display:none}
     .status-bar{display:flex;gap:18px;font-size:11px;color:#888}.status-item{display:flex;gap:6px;align-items:center}.dot{width:6px;height:6px;border-radius:50%;background:#333}.dot.live{background:#4caf50;box-shadow:0 0 6px #4caf50}.dot.warn{background:#f0a500;box-shadow:0 0 6px #f0a500}
 
     .body{display:grid;grid-template-columns:420px minmax(0,1fr) 420px;flex:1;min-height:0}
@@ -66,7 +66,7 @@
 </head>
 <body>
 <header>
-  <div class="logo"><div class="logo-mark">◉</div><div class="logo-stack"><div class="logo-text">HORUS</div><div class="logo-tag">Real-time market intelligence</div></div></div>
+  <div class="logo"><div class="logo-eye-mark">𓂀</div><div class="logo-text">HORUS</div></div>
   <div class="status-bar">
     <div class="status-item"><div class="dot" id="dot-feed"></div><span id="status-feed">CONNECTING</span></div>
     <div class="status-item"><div class="dot" id="dot-market"></div><span id="status-market">MARKETS</span></div>
