@@ -13,7 +13,10 @@ import './App.css'
 const LIVE_FEEDS = [
   { name: 'Al Jazeera English', channelId: 'UCNye-wNBqNL5ZzHSJj3l8Bg' },
   { name: 'TRT World', channelId: 'UC7fWeaHhqgM4Ry-RMpM2YYw' },
-  { name: 'France 24 English', channelId: 'UCCCPCZNChQdGa9EkATeye4g' }
+  { name: 'France 24 English', channelId: 'UCCCPCZNChQdGa9EkATeye4g' },
+  { name: 'Times Square Cam (EarthCam)', videoId: '1-iS7LArMPA' },
+  { name: 'Shibuya Crossing Cam', videoId: 'NQJqS7Qk6W0' },
+  { name: 'Seoul Live Cam', videoId: '-JhoMGoAfFc' }
 ]
 
 export default function App() {
@@ -184,11 +187,13 @@ export default function App() {
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:8, padding:8 }}>
             {LIVE_FEEDS.map(f => (
-              <div key={f.channelId} style={{ border:'1px solid #252525', borderRadius:8, overflow:'hidden', background:'#111' }}>
+              <div key={f.channelId || f.videoId} style={{ border:'1px solid #252525', borderRadius:8, overflow:'hidden', background:'#111' }}>
                 <div style={{ padding:'6px 8px', fontSize:11, color:'#cfcfcf', borderBottom:'1px solid #252525' }}>{f.name}</div>
                 <iframe
                   title={f.name}
-                  src={`https://www.youtube.com/embed/live_stream?channel=${f.channelId}&autoplay=1&controls=0&mute=1&playsinline=1&modestbranding=1&rel=0`}
+                  src={f.channelId
+                    ? `https://www.youtube.com/embed/live_stream?channel=${f.channelId}&autoplay=1&controls=0&mute=1&playsinline=1&modestbranding=1&rel=0`
+                    : `https://www.youtube.com/embed/${f.videoId}?autoplay=1&controls=0&mute=1&playsinline=1&modestbranding=1&rel=0`}
                   style={{ width:'100%', aspectRatio:'16 / 8.2', border:0 }}
                   allow="autoplay; encrypted-media; picture-in-picture"
                   referrerPolicy="strict-origin-when-cross-origin"
