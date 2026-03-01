@@ -36,29 +36,24 @@ async function readJson(name, fallback = null) {
 
 async function fetchBtc() {
   try {
-    const r = await fetch('https://api.gemini.com/v2/ticker/btcusd');
-    if (!r.ok) throw new Error(`gemini status ${r.status}`);
-    const j = await r.json();
-
-    // Gemini v2/ticker currently returns open/close and a changes[] array
-    const last = Number(j?.last ?? j?.close ?? NaN);
-    const open = Number(j?.open ?? NaN);
-
-    let pct = Number(j?.changes?.percentChange24h ?? NaN);
-    if (!Number.isFinite(pct) && Number.isFinite(open) && Number.isFinite(last) && open > 0) {
-      pct = (last - open) / open;
-    }
-
-    if (!Number.isFinite(last) || last < 1000) throw new Error('invalid BTC last from Gemini');
-
-    return { source:'gemini', last, percentChange24h:Number.isFinite(pct) ? pct : null, ts:Date.now(), raw:j };
+    // v1/pubticker = live last trade price
+    const [rTick, rDay] = await Promise.all([
+      fetch('https://api.gemini.com/v1/pubticker/btcusd'),
+      fetch('https://api.gemini.com/v2/ticker/btcusd')
+    ]);
+    const tick = await rTick.json();
+    const day  = await rDay.json();
+    const last = Number(tick?.last ?? NaN);
+    const open = Number(day?.open ?? NaN);
+    const pct  = (Number.isFinite(last) && Number.isFinite(open) && open > 0) ? (last - open) / open : null;
+    if (!Number.isFinite(last) || last < 1000) throw new Error('invalid BTC last');
+    return { source:'gemini', last, percentChange24h: pct, ts:Date.now() };
   } catch {
     const r2 = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
-    if (!r2.ok) throw new Error(`coingecko status ${r2.status}`);
     const j2 = await r2.json();
     const last = Number(j2?.bitcoin?.usd ?? NaN);
     if (!Number.isFinite(last) || last < 1000) throw new Error('invalid BTC last from CoinGecko');
-    return { source:'coingecko', last, percentChange24h:null, ts:Date.now(), raw:j2 };
+    return { source:'coingecko', last, percentChange24h:null, ts:Date.now() };
   }
 }
 

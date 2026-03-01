@@ -66,7 +66,7 @@
 </head>
 <body>
 <header>
-  <div class="logo"><div class="logo-eye-mark">𓂀</div><div class="logo-text">HORUS</div></div>
+  <div class="logo"><svg class="logo-eye-mark" viewBox="0 0 48 28" width="36" height="21" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M24 4C13 4 4 14 4 14s9 10 20 10 20-10 20-10S35 4 24 4z" stroke="#c8a84b" stroke-width="2" fill="none"/><circle cx="24" cy="14" r="5" fill="#c8a84b"/><circle cx="24" cy="14" r="2.2" fill="#0a0a0a"/><line x1="24" y1="19" x2="22" y2="26" stroke="#c8a84b" stroke-width="1.5" stroke-linecap="round"/></svg><div class="logo-text">HORUS</div></div>
   <div class="status-bar">
     <div class="status-item"><div class="dot" id="dot-feed"></div><span id="status-feed">CONNECTING</span></div>
     <div class="status-item"><div class="dot" id="dot-market"></div><span id="status-market">MARKETS</span></div>
@@ -311,7 +311,7 @@ if(chatForm){
 }
 
 connectJ7();
-loadBtc(); setInterval(loadBtc,15000);
+loadBtc(); setInterval(loadBtc,5000);
 loadMarkets();setInterval(loadMarkets,30000);
 loadChatHistory();
 </script>

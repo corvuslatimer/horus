@@ -1,0 +1,5 @@
+.app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+.body{display:grid;grid-template-columns:420px minmax(0,1fr) 420px;flex:1;min-height:0;overflow:hidden}
+.panel{display:flex;flex-direction:column;min-height:0}
+.left{border-right:1px solid #1a1a1a}
+.right{border-left:1px solid #1a1a1a}
