@@ -9,11 +9,6 @@ export default function useJ7Feed() {
   const [feedStatus, setFeedStatus] = useState(J7_TOKEN ? 'connecting' : 'pending')
   const wsRef = useRef(null)
 
-  const ts = () => {
-    const n = new Date()
-    return [n.getUTCHours(), n.getUTCMinutes(), n.getUTCSeconds()].map(x => String(x).padStart(2, '0')).join(':')
-  }
-
   useEffect(() => {
     if (!J7_TOKEN) return
     const connect = () => {
@@ -37,7 +32,8 @@ export default function useJ7Feed() {
               author: p[1].author ? `@${p[1].author.handle}` : 'unknown',
               text: p[1].text,
               url: p[1].tweetUrl || null,
-              time: ts(),
+              ts: Date.now(),
+              iso: new Date().toISOString(),
               id
             }
             setSignals(prev => {
