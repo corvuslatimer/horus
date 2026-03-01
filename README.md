@@ -4,6 +4,8 @@ Horus is a **local-first, open-source OSINT terminal** built for fast situationa
 
 It combines live signals, incident aggregation, military flight context, market overlays, and an integrated agent chat into one operator-style interface.
 
+It is designed to integrate directly with your OpenClaw agent, so you can text it from anywhere on the go with prompts like: "how are things in iran" or "what's the markets looking like".
+
 ![Horus dashboard](docs/images/horus-dashboard.jpg)
 
 ---
