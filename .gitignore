@@ -18,4 +18,3 @@ horus-relay/data/*.json
 horus-relay/data/
 
 # local memory notes (do not commit)
-MEMORY.md
