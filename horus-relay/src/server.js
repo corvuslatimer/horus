@@ -36,6 +36,8 @@ const EARTHQUAKES_POLL_MS = Number(process.env.EARTHQUAKES_POLL_MS || 300000);
 const NUCLEAR_FACILITIES_POLL_MS = Number(process.env.NUCLEAR_FACILITIES_POLL_MS || 21600000);
 const TELEGRAM_RELAY_URL = process.env.TELEGRAM_RELAY_URL || '';
 const TELEGRAM_RELAY_KEY = process.env.TELEGRAM_RELAY_KEY || '';
+const TELEGRAM_PUBLIC_FEED_URL = process.env.TELEGRAM_PUBLIC_FEED_URL || 'https://worldmonitor.app/api/telegram-feed';
+const TELEGRAM_MANUAL_FALLBACK = String(process.env.TELEGRAM_MANUAL_FALLBACK || 'false').toLowerCase() === 'true';
 const TELEGRAM_CHANNELS_DEFAULT = ['VahidOnline','abualiexpress','AuroraIntel','BNONews','ClashReport','DeepStateUA','DefenderDome','englishabuali','iranintltv','kpszsu','LiveUAMap','OSINTdefender','OsintUpdates','bellingcat','CyberDetective','GeopoliticalCenter','Middle_East_Spectator','MiddleEastNow_Breaking','nexta_tv','OSINTIndustries','Osintlatestnews','osintlive','OsintTv','spectatorindex','wfwitness','war_monitor'];
 const TELEGRAM_CHANNELS = (process.env.TELEGRAM_CHANNELS || TELEGRAM_CHANNELS_DEFAULT.join(','))
   .split(',')
@@ -521,8 +523,22 @@ async function fetchTelegramIntel(limit = 80) {
     };
   }
 
-  // fallback mode (no external relay): scrape public Telegram channel pages
-  return fetchTelegramIntelFromPublicChannels(limit);
+  try {
+    return await fetchTelegramIntelFromPublicApi(limit);
+  } catch (e) {
+    if (TELEGRAM_MANUAL_FALLBACK) {
+      return fetchTelegramIntelFromPublicChannels(limit);
+    }
+    return {
+      source: 'telegram-disabled',
+      enabled: false,
+      earlySignal: false,
+      count: 0,
+      updatedAt: nowIso(),
+      items: [],
+      error: String(e?.message || e)
+    };
+  }
 }
 
 
@@ -599,6 +615,39 @@ async function fetchTelegramPublicChannel(channel, limit = 10) {
   }
 
   return items;
+}
+
+
+async function fetchTelegramIntelFromPublicApi(limit = 80) {
+  const url = new URL(TELEGRAM_PUBLIC_FEED_URL);
+  url.searchParams.set('limit', String(Math.max(1, Math.min(200, limit))));
+
+  const r = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
+  if (!r.ok) throw new Error(`telegram public api status ${r.status}`);
+  const j = await r.json();
+  const rawItems = Array.isArray(j?.items) ? j.items : Array.isArray(j) ? j : [];
+
+  const items = rawItems.map((x, idx) => ({
+    id: x?.id ? String(x.id) : `tg-public-${idx}-${x?.ts || x?.timestamp || Date.now()}`,
+    source: 'telegram',
+    channel: x?.channel || x?.channelTitle || x?.source || '@unknown',
+    channelTitle: x?.channelTitle || x?.channel || x?.source || '@unknown',
+    url: x?.url || '',
+    ts: x?.ts || x?.timestamp || x?.date || nowIso(),
+    text: String(x?.text || x?.message || '').trim(),
+    topic: x?.topic || classifyTelegramTopic(String(x?.text || x?.message || '')),
+    tags: Array.isArray(x?.tags) ? x.tags : [],
+    earlySignal: Boolean(x?.earlySignal) || /breaking|urgent|alert|strike|missile|drone/i.test(String(x?.text || x?.message || ''))
+  })).filter((x) => x.text);
+
+  return {
+    source: 'telegram-public-api',
+    enabled: true,
+    earlySignal: items.some(x => x.earlySignal),
+    count: Number(j?.count || items.length),
+    updatedAt: j?.updatedAt || nowIso(),
+    items: items.slice(0, limit)
+  };
 }
 
 async function fetchTelegramIntelFromPublicChannels(limit = 80) {
