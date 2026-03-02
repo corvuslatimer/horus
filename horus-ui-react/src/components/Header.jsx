@@ -27,7 +27,7 @@ export default function Header({ feedStatus, onToggleLiveFeeds }) {
         const r = await fetch(`${RELAY}/api/ppi`)
         const j = await r.json()
         setPpi({ weightedAvg: Number(j?.weightedAvg || 0), locations: j?.locations || [] })
-      } catch {}
+      } catch (err) { console.debug(err) }
     }
     load()
     const id = setInterval(load, 10000)

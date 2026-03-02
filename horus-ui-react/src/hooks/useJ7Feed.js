@@ -4,7 +4,6 @@ const RELAY = import.meta.env.VITE_RELAY_URL || 'http://localhost:8787'
 
 export default function useJ7Feed() {
   const [signals, setSignals] = useState([])
-  const [usersOnline, setUsersOnline] = useState(null)
   const [feedStatus, setFeedStatus] = useState('connecting')
 
   useEffect(() => {
@@ -28,5 +27,5 @@ export default function useJ7Feed() {
     return () => { active = false; clearInterval(id) }
   }, [])
 
-  return { signals, usersOnline, feedStatus }
+  return { signals, feedStatus }
 }

@@ -23,12 +23,11 @@ export default function App() {
   const { signals, feedStatus } = useJ7Feed()
 
   const [chatPos, setChatPos] = useState({ x: 980, y: 120 })
-  const [chatOpen, setChatOpen] = useState(true)
+  const [_chatOpen, _setChatOpen] = useState(true)
   const [chatSize, setChatSize] = useState({ w: 400, h: 420 })
   const [draggingChat, setDraggingChat] = useState(false)
   const [resizing, setResizing] = useState(null) // 'tl' | 'tr' | 'bl' | 'br' | null
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
-  const resizeStartRef = useRef(null)
   const chatPopupRef = useRef(null)
   const [feedsOpen, setFeedsOpen] = useState(false)
   const [feedsPos, setFeedsPos] = useState({ x: 180, y: 120 })
@@ -49,24 +48,10 @@ export default function App() {
     setFeedsDragOffset({ x: e.clientX - feedsPos.x, y: e.clientY - feedsPos.y })
   }
 
-  const startResize = (corner, e) => {
-    e.stopPropagation()
-    setResizing(corner)
-    resizeStartRef.current = {
-      x: e.clientX,
-      y: e.clientY,
-      posX: chatPos.x,
-      posY: chatPos.y,
-      w: chatSize.w,
-      h: chatSize.h
-    }
-  }
-
   const stopInteract = () => {
     setDraggingChat(false)
     setDraggingFeeds(false)
     setResizing(null)
-    resizeStartRef.current = null
   }
 
   const onDrag = (e) => {
@@ -84,53 +69,6 @@ export default function App() {
       return
     }
 
-    if (resizing && resizeStartRef.current) {
-      const st = resizeStartRef.current
-      const dx = e.clientX - st.x
-      const dy = e.clientY - st.y
-
-      let nextW = st.w
-      let nextH = st.h
-      let nextX = st.posX
-      let nextY = st.posY
-
-      if (resizing.includes('r')) nextW = st.w + dx
-      if (resizing.includes('l')) {
-        nextW = st.w - dx
-        nextX = st.posX + dx
-      }
-      if (resizing.includes('b')) nextH = st.h + dy
-      if (resizing.includes('t')) {
-        nextH = st.h - dy
-        nextY = st.posY + dy
-      }
-
-      if (nextW < MIN_W) {
-        if (resizing.includes('l')) nextX -= (MIN_W - nextW)
-        nextW = MIN_W
-      }
-      if (nextH < MIN_H) {
-        if (resizing.includes('t')) nextY -= (MIN_H - nextH)
-        nextH = MIN_H
-      }
-
-      if (nextX < 8) {
-        if (resizing.includes('l')) nextW -= (8 - nextX)
-        nextX = 8
-      }
-      if (nextY < 56) {
-        if (resizing.includes('t')) nextH -= (56 - nextY)
-        nextY = 56
-      }
-
-      const maxW = window.innerWidth - nextX - 8
-      const maxH = window.innerHeight - nextY - 8
-      nextW = Math.max(MIN_W, Math.min(nextW, maxW))
-      nextH = Math.max(MIN_H, Math.min(nextH, maxH))
-
-      setChatPos({ x: nextX, y: nextY })
-      setChatSize({ w: nextW, h: nextH })
-    }
   }
 
   useEffect(() => {

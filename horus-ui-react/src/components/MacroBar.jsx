@@ -51,7 +51,7 @@ export default function MacroBar() {
           next.SOL = { current: Number(sol.solana.usd), percent: Number.isFinite(Number(sol?.solana?.usd_24h_change)) ? Number(sol.solana.usd_24h_change) : null }
         }
         setSymbols(next)
-      } catch {}
+      } catch (err) { console.debug(err) }
     }
 
     load()

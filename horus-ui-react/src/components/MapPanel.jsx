@@ -121,6 +121,32 @@ const LIVE_FEEDS = [
 ]
 
 
+
+
+const GEO_EVENTS = [
+  { id:'evt-001', title:'US-Israel joint strikes on Iran; Supreme Leader Khamenei killed', category:'strike', severity:95, lat:35.6892, lng:51.3890, source:'Reuters/Al Jazeera reports (multiple sources March 1-2 2026)', ts:'2026-02-28T00:00:00Z' },
+  { id:'evt-002', title:'Iran retaliatory missile barrages on Israel', category:'strike', severity:90, lat:32.0853, lng:34.7818, source:'AP/Guardian reports (March 1 2026)', ts:'2026-03-01T00:00:00Z' },
+  { id:'evt-003', title:'Hezbollah launches rockets/drones at northern Israel in retaliation', category:'strike', severity:85, lat:33.0, lng:35.5, source:'Haaretz/Guardian (March 1 2026)', ts:'2026-03-01T12:00:00Z' },
+  { id:'evt-004', title:'IDF strikes Hezbollah targets in Beirut and southern Lebanon', category:'strike', severity:80, lat:33.8938, lng:35.5018, source:'Reuters/Haaretz (March 1 2026)', ts:'2026-03-01T18:00:00Z' },
+  { id:'evt-005', title:'Iran declares 40 days mourning; threatens most intense attack', category:'diplomatic', severity:75, lat:35.6892, lng:51.3890, source:'Al Jazeera (Feb 28-March 1 2026)', ts:'2026-03-01T00:00:00Z' }
+]
+
+const SHIPPING_INCIDENTS = [
+  { id:'ship-001', title:'Attacks on vessels in Strait of Hormuz; shipping disruptions', lat:26.5667, lng:56.4333, status:'disrupted', route:'Strait of Hormuz / Persian Gulf', ts:'2026-03-01T00:00:00Z' },
+  { id:'ship-002', title:'Maersk halts some Red Sea transits amid fears of Houthi resumption', lat:15.0, lng:40.0, status:'disrupted', route:'Red Sea', ts:'2026-03-01T12:00:00Z' },
+  { id:'ship-003', title:'Houthis signal intent to resume Red Sea attacks post-Iran strikes', lat:14.7978, lng:42.9511, status:'disrupted', route:'Red Sea / Gulf of Aden', ts:'2026-03-01T00:00:00Z' }
+]
+
+const INFRA_OUTAGES = [
+  { id:'infra-001', name:'Middle East airspace closures / flight halts (multiple airports)', infraType:'airport', lat:35.6892, lng:51.3890, impact:'high', ts:'2026-03-01T00:00:00Z' }
+]
+
+const COUNTRY_SCORES = [
+  { country:'Israel', iso2:'IL', riskScore:92, trend:'rising', updatedAt:'2026-03-02T00:00:00Z' },
+  { country:'Iran', iso2:'IR', riskScore:95, trend:'rising', updatedAt:'2026-03-02T00:00:00Z' },
+  { country:'Lebanon', iso2:'LB', riskScore:85, trend:'rising', updatedAt:'2026-03-01T20:00:00Z' }
+]
+
 const norm = c => (c || '').trim().toUpperCase()
 const trackHistory = {}
 const RELAY = import.meta.env.VITE_RELAY_URL || 'http://localhost:8787'
@@ -202,9 +228,12 @@ export default function MapPanel() {
   const cableLayerRef = useRef(null)
   const pipelineLayerRef = useRef(null)
   const conflictLayerRef = useRef(null)
+  const eventsLayerRef = useRef(null)
+  const shippingLayerRef = useRef(null)
+  const infraLayerRef = useRef(null)
   const lastFlightsTsRef = useRef(null)
   const refreshIdRef = useRef(null)
-  const layersRef = useRef({ hotspots: true, flights: true, trails: true, chokepoints: true, tradeRoutes: true, bases: false, cables: false, pipelines: false, conflicts: true })
+  const layersRef = useRef({ hotspots: true, flights: true, trails: true, chokepoints: true, tradeRoutes: true, bases: false, cables: false, pipelines: false, conflicts: true, events: true, shipping: true, infra: true })
   const flightsRef = useRef([])
   const prevRiskRef = useRef(null)
 
@@ -212,14 +241,17 @@ export default function MapPanel() {
 
   const [selected, setSelected] = useState(null)
   const [activePreset, setActivePreset] = useState(persisted?.activePreset && PRESETS[persisted.activePreset] ? persisted.activePreset : 'GLOBAL')
-  const [layers, setLayers] = useState(persisted?.layers || { hotspots: true, flights: true, trails: true, chokepoints: true, tradeRoutes: true, bases: false, cables: false, pipelines: false, conflicts: true })
+  const [layers, setLayers] = useState(persisted?.layers || { hotspots: true, flights: true, trails: true, chokepoints: true, tradeRoutes: true, bases: false, cables: false, pipelines: false, conflicts: true, events: true, shipping: true, infra: true })
   const [timeWindow, setTimeWindow] = useState(persisted?.timeWindow && TIME_WINDOWS[persisted.timeWindow] ? persisted.timeWindow : '24H')
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [paletteQ, setPaletteQ] = useState('')
   const [freshnessTick, setFreshnessTick] = useState(0)
   const [riskFusion, setRiskFusion] = useState({ score: 0, trend: 'stable', hotspots: 0, nearFlights: 0, updatedTs: null })
-  const [flightHealth, setFlightHealth] = useState({ lastOkTs: null, lastErrorTs: null, lastError: null })
+  const [_flightHealth, setFlightHealth] = useState({ lastOkTs: null, lastErrorTs: null, lastError: null })
   const [liveFeedsOpen, setLiveFeedsOpen] = useState(false)
+
+  const activePresetRef = useRef(activePreset)
+  const timeWindowRef = useRef(timeWindow)
 
   const commandInputRef = useRef(null)
 
@@ -276,9 +308,17 @@ export default function MapPanel() {
   }, [activePreset, layers, timeWindow])
 
   useEffect(() => {
+    activePresetRef.current = activePreset
+  }, [activePreset])
+
+  useEffect(() => {
+    timeWindowRef.current = timeWindow
+  }, [timeWindow])
+
+  useEffect(() => {
     if (mapObjRef.current) return
 
-    const map = L.map(mapRef.current, { zoomControl: true }).setView(PRESETS[activePreset].center, PRESETS[activePreset].zoom)
+    const map = L.map(mapRef.current, { zoomControl: true }).setView(PRESETS[activePresetRef.current].center, PRESETS[activePresetRef.current].zoom)
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, minZoom: 2, subdomains: 'abcd', attribution: '&copy; OpenStreetMap contributors &copy; CARTO' }).addTo(map)
 
     hotspotLayerRef.current = L.layerGroup().addTo(map)
@@ -290,6 +330,9 @@ export default function MapPanel() {
     cableLayerRef.current = L.layerGroup().addTo(map)
     pipelineLayerRef.current = L.layerGroup().addTo(map)
     conflictLayerRef.current = L.layerGroup().addTo(map)
+    eventsLayerRef.current = L.layerGroup().addTo(map)
+    shippingLayerRef.current = L.layerGroup().addTo(map)
+    infraLayerRef.current = L.layerGroup().addTo(map)
     mapObjRef.current = map
 
     HOTSPOTS.forEach(h => {
@@ -344,6 +387,28 @@ export default function MapPanel() {
       ring.addTo(conflictLayerRef.current)
     })
 
+
+    GEO_EVENTS.forEach(e => {
+      const color = e.category === 'strike' ? '#ef4444' : '#f59e0b'
+      const m = L.circleMarker([e.lat, e.lng], { radius: 4 + Math.round((e.severity || 50) / 20), color, weight: 1.2, fillColor: color, fillOpacity: 0.9 })
+      m.bindTooltip(`<b>${e.title}</b><br/>${e.category.toUpperCase()} · Severity ${e.severity}/100<br/>${e.source}`, { direction:'top', opacity:0.95 })
+      m.addTo(eventsLayerRef.current)
+    })
+
+    SHIPPING_INCIDENTS.forEach(si => {
+      const color = si.status === 'disrupted' ? '#fb7185' : '#22c55e'
+      const m = L.circleMarker([si.lat, si.lng], { radius: 6, color, weight: 1.2, fillColor: color, fillOpacity: 0.9 })
+      m.bindTooltip(`<b>${si.title}</b><br/>Route: ${si.route}<br/>Status: ${si.status}`, { direction:'top', opacity:0.95 })
+      m.addTo(shippingLayerRef.current)
+    })
+
+    INFRA_OUTAGES.forEach(io => {
+      const color = io.impact === 'high' ? '#f97316' : '#f59e0b'
+      const m = L.circleMarker([io.lat, io.lng], { radius: 7, color, weight: 1.2, fillColor: color, fillOpacity: 0.9 })
+      m.bindTooltip(`<b>${io.name}</b><br/>${io.infraType.toUpperCase()} · impact: ${io.impact}`, { direction:'top', opacity:0.95 })
+      m.addTo(infraLayerRef.current)
+    })
+
     const syncZoomDisclosure = () => {
       const z = map.getZoom()
       const showTrailsAtZoom = z >= 4
@@ -368,7 +433,7 @@ export default function MapPanel() {
         trailLayerRef.current.clearLayers()
 
         const rawFlights = j.flights || []
-        const filteredFlights = byTimeWindow(rawFlights, 'updatedTs', TIME_WINDOWS[timeWindow].minutes)
+        const filteredFlights = byTimeWindow(rawFlights, 'updatedTs', TIME_WINDOWS[timeWindowRef.current].minutes)
         flightsRef.current = filteredFlights
 
         filteredFlights.forEach(x => {
@@ -388,14 +453,14 @@ export default function MapPanel() {
           }
         })
 
-        recomputeRiskFusion(activePreset, filteredFlights)
+        recomputeRiskFusion(activePresetRef.current, filteredFlights)
         syncZoomDisclosure()
       } catch (err) {
-        setFlightHealth({
-          lastOkTs: flightHealth.lastOkTs,
+        setFlightHealth(prev => ({
+          ...prev,
           lastErrorTs: Date.now(),
           lastError: err?.message || 'fetch failure'
-        })
+        }))
       }
     }
 
@@ -422,7 +487,10 @@ export default function MapPanel() {
       ['bases', baseLayerRef.current],
       ['cables', cableLayerRef.current],
       ['pipelines', pipelineLayerRef.current],
-      ['conflicts', conflictLayerRef.current]
+      ['conflicts', conflictLayerRef.current],
+      ['events', eventsLayerRef.current],
+      ['shipping', shippingLayerRef.current],
+      ['infra', infraLayerRef.current]
     ]
 
     layerTargets.forEach(([name, layer]) => {
@@ -477,8 +545,6 @@ export default function MapPanel() {
   const trendColor = riskFusion.trend === 'rising' ? '#ef4444' : riskFusion.trend === 'falling' ? '#22c55e' : '#a3a3a3'
   const flightsAge = lastFlightsTsRef.current ? Date.now() - Number(lastFlightsTsRef.current) : null
   const hotspotsAge = freshnessTick * 1000
-  const flightGapAge = flightHealth.lastOkTs ? Date.now() - Number(flightHealth.lastOkTs) : null
-  const showGap = flightGapAge && flightGapAge > 9 * 60 * 1000
 
   return (
     <div style={{ position: 'relative', minHeight: 0 }}>
@@ -498,7 +564,7 @@ export default function MapPanel() {
         </div>
 
         <div style={{ background: 'rgba(0,0,0,.62)', padding: '5px 6px', border: '1px solid #333', borderRadius: 6, fontSize: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {[['hotspots', 'Hotspots'], ['flights', 'Flights'], ['trails', 'Trails'], ['chokepoints', 'Chokepoints'], ['tradeRoutes', 'Trade Routes'], ['bases', 'Bases'], ['cables', 'Cables'], ['pipelines', 'Pipelines'], ['conflicts', 'Conflicts']].map(([key, label]) => (
+          {[['hotspots', 'Hotspots'], ['flights', 'Flights'], ['trails', 'Trails'], ['chokepoints', 'Chokepoints'], ['tradeRoutes', 'Trade Routes'], ['bases', 'Bases'], ['cables', 'Cables'], ['pipelines', 'Pipelines'], ['conflicts', 'Conflicts'], ['events', 'Events'], ['shipping', 'Shipping'], ['infra', 'Infra']].map(([key, label]) => (
             <label key={key} style={{ display: 'flex', gap: 4, alignItems: 'center', cursor: 'pointer' }}>
               <input type='checkbox' checked={layers[key]} onChange={(e) => setLayers(s => ({ ...s, [key]: e.target.checked }))} />
               {label}
@@ -511,6 +577,7 @@ export default function MapPanel() {
           <div style={{ marginTop: 3, fontSize: 16, fontWeight: 800 }}>{riskFusion.score}/100</div>
           <div style={{ marginTop: 4, color: '#aaa' }}>Hotspots in scope: {riskFusion.hotspots} · Flights near hotspots: {riskFusion.nearFlights}</div>
           <div style={{ marginTop: 2, color: '#777' }}>Updated: {timeAgo(riskFusion.updatedTs)}</div>
+          <div style={{ marginTop: 4, color:'#8aa1c8' }}>Scores: {COUNTRY_SCORES.map(c => `${c.iso2} ${c.riskScore}`).join(' · ')}</div>
         </div>
 
         <div style={{ background: 'rgba(0,0,0,.72)', padding: '6px 8px', border: '1px solid #333', borderRadius: 6, fontSize: 10 }}>
@@ -538,6 +605,9 @@ export default function MapPanel() {
         <span><span style={{ display: 'inline-block', width: 14, height: 0, borderTop: '2px solid #60a5fa', marginRight: 4, position:'relative', top:-2 }} />CABLE</span>
         <span><span style={{ display: 'inline-block', width: 14, height: 0, borderTop: '2px dashed #fb7185', marginRight: 4, position:'relative', top:-2 }} />PIPELINE</span>
         <span><span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: '#ef4444', marginRight: 4, opacity:0.6 }} />CONFLICT</span>
+        <span><span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: '#ef4444', marginRight: 4 }} />EVENT</span>
+        <span><span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: '#fb7185', marginRight: 4 }} />SHIPPING</span>
+        <span><span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: '#f97316', marginRight: 4 }} />INFRA</span>
         <span style={{ color: '#888' }}>Cmd/Ctrl+K</span>
       </div>
 

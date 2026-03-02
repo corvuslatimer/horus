@@ -22,7 +22,7 @@ export default function TelegramIntelPanel() {
         const r = await fetch(`${RELAY}/api/telegram-intel`)
         const j = await r.json()
         setData({ enabled: Boolean(j?.enabled), items: j?.items || [], count: Number(j?.count || 0) })
-      } catch {}
+      } catch (err) { console.debug(err) }
     }
     load()
     const id = setInterval(load, 15000)

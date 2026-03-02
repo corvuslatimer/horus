@@ -21,7 +21,7 @@ export default function SectorHeatmapPanel() {
         const r = await fetch(`${RELAY}/api/sector-heatmap`)
         const j = await r.json()
         setSectors(j?.sectors || [])
-      } catch {}
+      } catch (err) { console.debug(err) }
     }
     load()
     const id = setInterval(load, 10000)

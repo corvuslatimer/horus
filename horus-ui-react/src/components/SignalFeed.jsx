@@ -14,11 +14,13 @@ function timeAgoFromSignal(sig, nowMs) {
 }
 
 export default function SignalFeed({ signals }) {
-  const [nowMs, setNowMs] = useState(Date.now())
+  const [nowMs, setNowMs] = useState(0)
   const [flashIds, setFlashIds] = useState(new Set())
   const seenRef = useRef(new Set())
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNowMs(Date.now())
     const id = setInterval(() => setNowMs(Date.now()), 1000)
     return () => clearInterval(id)
   }, [])
@@ -32,6 +34,7 @@ export default function SignalFeed({ signals }) {
       }
     }
     if (incomingFast.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFlashIds(prev => {
         const n = new Set(prev)
         incomingFast.forEach(id => n.add(id))
@@ -59,7 +62,7 @@ export default function SignalFeed({ signals }) {
         gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22)
         osc.connect(gain).connect(ctx.destination)
         osc.start(); osc.stop(ctx.currentTime + 0.23)
-      } catch {}
+      } catch (err) { console.debug(err) }
     }
   }, [signals])
 

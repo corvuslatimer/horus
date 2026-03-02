@@ -28,14 +28,15 @@ function timeAgo(article, nowMs) {
 
 export default function IncidentsPanel() {
   const [articles, setArticles] = useState([])
-  const [status, setStatus] = useState('loading')
   const [flash, setFlash] = useState(false)
   const [newIds, setNewIds] = useState(new Set())
-  const [nowMs, setNowMs] = useState(Date.now())
+  const [nowMs, setNowMs] = useState(0)
   const seenRef = useRef(new Set())
   const primedRef = useRef(false)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNowMs(Date.now())
     const tick = setInterval(() => setNowMs(Date.now()), 1000)
     return () => clearInterval(tick)
   }, [])
@@ -72,13 +73,12 @@ export default function IncidentsPanel() {
               osc.connect(gain).connect(ctx.destination)
               osc.start()
               osc.stop(ctx.currentTime + 0.23)
-            } catch {}
+            } catch (err) { console.debug(err) }
           }
         }
 
         setArticles(next)
-        setStatus('live')
-      } catch { setStatus('error') }
+      } catch (err) { console.debug(err) }
     }
     load(); const id = setInterval(load, 2000); return () => clearInterval(id)
   }, [])
@@ -96,7 +96,7 @@ export default function IncidentsPanel() {
       </div>
       <div style={{flex:1,overflowY:'scroll',scrollbarWidth:'thin'}}>
         {sortedArticles.length===0 && <div style={{padding:30,color:'#444',fontSize:11,textAlign:'center'}}>LOADING INCIDENTS…</div>}
-        {sortedArticles.map((a,i) => {
+        {sortedArticles.map((a) => {
           const itemKey = a.url || `${a.title}|${a.seendate}`
           const isNew = newIds.has(itemKey)
           return (
