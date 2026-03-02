@@ -78,8 +78,8 @@ export default function App() {
     }
 
     if (draggingFeeds) {
-      const x = Math.max(20, Math.min(window.innerWidth - 1120, e.clientX - feedsDragOffset.x))
-      const y = Math.max(70, Math.min(window.innerHeight - 220, e.clientY - feedsDragOffset.y))
+      const x = e.clientX - feedsDragOffset.x
+      const y = e.clientY - feedsDragOffset.y
       setFeedsPos({ x, y })
       return
     }
@@ -180,19 +180,19 @@ export default function App() {
 
 
       {feedsOpen && (
-        <div style={{ position: 'fixed', left: feedsPos.x, top: feedsPos.y, width: 1120, minWidth: 640, minHeight: 360, maxWidth: 'calc(100vw - 16px)', maxHeight: 'calc(100vh - 64px)', zIndex: 9998, boxShadow: '0 10px 35px rgba(0,0,0,.55)', borderRadius: 8, overflow: 'auto', resize: 'both', border: '1px solid #2a2a2a', background: '#0d0d0d' }}>
+        <div style={{ position: 'fixed', left: feedsPos.x, top: feedsPos.y, width: 1120, zIndex: 9998, boxShadow: '0 10px 35px rgba(0,0,0,.55)', borderRadius: 8, overflow: 'auto', resize: 'both', border: '1px solid #2a2a2a', background: '#0d0d0d' }}>
           <div onMouseDown={startFeedsDrag} style={{ cursor: 'move', userSelect: 'none', background: '#111', borderBottom: '1px solid #2a2a2a', color: '#bbb', fontSize: 11, letterSpacing: 1, padding: '7px 10px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
             <span>LIVE YOUTUBE FEEDS</span>
             <button onClick={() => setFeedsOpen(false)} style={{ background:'#1a1a1a', border:'1px solid #333', color:'#bbb', borderRadius:6, padding:'3px 8px', cursor:'pointer' }}>Close</button>
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:8, padding:8 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:8, padding:8 }}>
             {LIVE_FEEDS.map(f => (
               <div key={f.videoId} style={{ border:'1px solid #252525', borderRadius:8, overflow:'hidden', background:'#111' }}>
                 <div style={{ padding:'6px 8px', fontSize:11, color:'#cfcfcf', borderBottom:'1px solid #252525' }}>{f.name}</div>
                 <iframe
                   title={f.name}
                   src={`https://www.youtube.com/embed/${f.videoId}?autoplay=1&controls=1&mute=1&playsinline=1&modestbranding=1&rel=0`}
-                  style={{ width:'100%', aspectRatio:'16 / 8.2', border:0 }}
+                  style={{ width:'100%', aspectRatio:'16 / 9', border:0 }}
                   allow="autoplay; encrypted-media; picture-in-picture"
                   referrerPolicy="strict-origin-when-cross-origin"
                 />
