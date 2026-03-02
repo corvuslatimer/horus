@@ -16,3 +16,6 @@ horus-relay/data/*.json
 
 # runtime relay data
 horus-relay/data/
+
+# local memory notes (do not commit)
+MEMORY.md
