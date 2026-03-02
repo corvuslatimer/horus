@@ -36,7 +36,12 @@ const EARTHQUAKES_POLL_MS = Number(process.env.EARTHQUAKES_POLL_MS || 300000);
 const NUCLEAR_FACILITIES_POLL_MS = Number(process.env.NUCLEAR_FACILITIES_POLL_MS || 21600000);
 const TELEGRAM_RELAY_URL = process.env.TELEGRAM_RELAY_URL || '';
 const TELEGRAM_RELAY_KEY = process.env.TELEGRAM_RELAY_KEY || '';
-const TELEGRAM_CHANNELS = (process.env.TELEGRAM_CHANNELS || 'VahidOnline,abualiexpress,AuroraIntel,BNONews,ClashReport,DeepStateUA,DefenderDome,englishabuali,iranintltv,kpszsu,LiveUAMap,OSINTdefender,OsintUpdates,bellingcat,CyberDetective,GeopoliticalCenter,Middle_East_Spectator,MiddleEastNow_Breaking,nexta_tv,OSINTIndustries,Osintlatestnews,osintlive,OsintTv,spectatorindex,wfwitness,war_monitor').split(',').map(x=>x.trim()).filter(Boolean);
+const TELEGRAM_CHANNELS_DEFAULT = ['VahidOnline','abualiexpress','AuroraIntel','BNONews','ClashReport','DeepStateUA','DefenderDome','englishabuali','iranintltv','kpszsu','LiveUAMap','OSINTdefender','OsintUpdates','bellingcat','CyberDetective','GeopoliticalCenter','Middle_East_Spectator','MiddleEastNow_Breaking','nexta_tv','OSINTIndustries','Osintlatestnews','osintlive','OsintTv','spectatorindex','wfwitness','war_monitor'];
+const TELEGRAM_CHANNELS = (process.env.TELEGRAM_CHANNELS || TELEGRAM_CHANNELS_DEFAULT.join(','))
+  .split(',')
+  .map(x => x.trim())
+  .filter(Boolean);
+const TELEGRAM_CHANNELS_FILE = path.join(__dirname, '..', 'config', 'telegram-channels.json');
 const MAX_SIGNALS = Number(process.env.MAX_SIGNALS || 500);
 
 const HORUS_BRIDGE_PRIMER = `You are the Horus site agent. Follow /root/horus/horus-skill/SKILL.md as authoritative operating context. Keep answers concise, practical, and specific to Horus architecture (relay-first, persisted data files, no direct frontend upstream fetches unless explicitly requested). Use Horus data files when relevant: signals.ndjson, incidents.json, flights.json, btc.json, macro.json, telegram-intel.json, sector-heatmap.json, ppi.json. When unsure, prioritize what is currently implemented in /root/horus over generic suggestions.`;
@@ -521,6 +526,21 @@ async function fetchTelegramIntel(limit = 80) {
 }
 
 
+
+async function resolveTelegramChannels() {
+  try {
+    const raw = await fs.readFile(TELEGRAM_CHANNELS_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    const full = Array.isArray(parsed?.channels?.full) ? parsed.channels.full : [];
+    const fromFile = full
+      .filter((c) => c?.enabled !== false && typeof c?.handle === 'string')
+      .map((c) => String(c.handle).trim())
+      .filter(Boolean);
+    if (fromFile.length) return fromFile;
+  } catch {}
+  return TELEGRAM_CHANNELS;
+}
+
 function classifyTelegramTopic(text = '') {
   const t = String(text).toLowerCase();
   if (/breaking|urgent|developing|just in|alert/.test(t)) return 'breaking';
@@ -582,8 +602,9 @@ async function fetchTelegramPublicChannel(channel, limit = 10) {
 }
 
 async function fetchTelegramIntelFromPublicChannels(limit = 80) {
-  const per = Math.max(4, Math.min(20, Math.ceil(limit / Math.max(1, TELEGRAM_CHANNELS.length))));
-  const settled = await Promise.allSettled(TELEGRAM_CHANNELS.map(ch => fetchTelegramPublicChannel(ch, per)));
+  const channels = await resolveTelegramChannels();
+  const per = Math.max(4, Math.min(20, Math.ceil(limit / Math.max(1, channels.length))));
+  const settled = await Promise.allSettled(channels.map(ch => fetchTelegramPublicChannel(ch, per)));
   const items = [];
   for (const row of settled) {
     if (row.status === 'fulfilled') items.push(...row.value);

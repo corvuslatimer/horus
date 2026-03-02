@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "source": "worldmonitor curated public channels",
+  "channels": {
+    "full": [
+      { "handle": "VahidOnline", "enabled": true },
+      { "handle": "abualiexpress", "enabled": true },
+      { "handle": "AuroraIntel", "enabled": true },
+      { "handle": "BNONews", "enabled": true },
+      { "handle": "ClashReport", "enabled": true },
+      { "handle": "DeepStateUA", "enabled": true },
+      { "handle": "DefenderDome", "enabled": true },
+      { "handle": "englishabuali", "enabled": true },
+      { "handle": "iranintltv", "enabled": true },
+      { "handle": "kpszsu", "enabled": true },
+      { "handle": "LiveUAMap", "enabled": true },
+      { "handle": "OSINTdefender", "enabled": true },
+      { "handle": "OsintUpdates", "enabled": true },
+      { "handle": "bellingcat", "enabled": true },
+      { "handle": "CyberDetective", "enabled": true },
+      { "handle": "GeopoliticalCenter", "enabled": true },
+      { "handle": "Middle_East_Spectator", "enabled": true },
+      { "handle": "MiddleEastNow_Breaking", "enabled": true },
+      { "handle": "nexta_tv", "enabled": true },
+      { "handle": "OSINTIndustries", "enabled": true },
+      { "handle": "Osintlatestnews", "enabled": true },
+      { "handle": "osintlive", "enabled": true },
+      { "handle": "OsintTv", "enabled": true },
+      { "handle": "spectatorindex", "enabled": true },
+      { "handle": "wfwitness", "enabled": true },
+      { "handle": "war_monitor", "enabled": true }
+    ]
+  }
+}
