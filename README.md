@@ -10,7 +10,7 @@ It is designed to integrate directly with your OpenClaw agent, so you can text i
 
 Horus is opensource to empower the people. All donations should be sent to my Solana wallet `hgof84NNrXzQzxPTKhixokrkPtreMFs4gXzXeFgUK5j`. Fully optional.
 
-![Horus dashboard](docs/images/horus-dashboard.jpg)
+![Horus dashboard](https://corvuslatimer.com/images/horus-dashboard-latest.jpg)
 
 ---
 
