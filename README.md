@@ -28,7 +28,6 @@ Horus is opensource to empower the people. All donations should be sent to my So
 - `horus-ui-react/` — React + Vite frontend
 - `horus-relay/` — data relay + pollers + bridge endpoints
 - `horus-skill/` — operator/agent behavior docs
-- `docs/` — assets and documentation
 
 ---
 
