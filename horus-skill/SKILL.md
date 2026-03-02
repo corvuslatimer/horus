@@ -99,7 +99,7 @@ Multi-source incidents aggregator includes Reuters/BBC/Al Jazeera/regional + Fin
 - Frontend should never call third-party market APIs directly; use relay snapshots/endpoints only.
 
 ### J7
-
+J7 is a realtime twitter tracker with sub 1000ms refresh that tracks 1000 major tech & news accounts.
 - Relay supports J7 login using username/password in `.env`
 - Auto-token flow + socket auth to ingest tweet stream into `signals.ndjson`
 
