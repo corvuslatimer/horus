@@ -38,8 +38,8 @@ export default function SectorHeatmapPanel() {
           return (
             <div key={s.name} style={{ border: `1px solid ${st.border}`, background: st.bg, borderRadius: 6, padding: '4px 6px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                <span style={{ fontSize: 10, color: '#c7c7c7', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</span>
-                <span style={{ fontSize: 11, fontWeight: 700, color: st.color, whiteSpace: 'nowrap' }}>{val >= 0 ? '+' : ''}{val.toFixed(2)}%</span>
+                <span style={{ fontSize: 10, color: '#c7c7c7', whiteSpace: 'normal' }}>{s.name}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: st.color, whiteSpace: 'normal' }}>{val >= 0 ? '+' : ''}{val.toFixed(2)}%</span>
               </div>
             </div>
           )
