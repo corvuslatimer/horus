@@ -45,7 +45,7 @@ export default function IncidentsPanel() {
       try {
         const r = await fetch(`${RELAY}/api/incidents`)
         const j = await r.json()
-        const next = (j?.articles || []).filter(a => !['jpost','financialjuice'].includes(String(a.source || '').toLowerCase()))
+        const next = (j?.articles || []).filter(a => String(a.source || '').toLowerCase() !== 'financialjuice')
 
         const keys = next.map(a => a.url || `${a.title}|${a.seendate}`)
         if (!primedRef.current) {
@@ -94,7 +94,7 @@ export default function IncidentsPanel() {
       <div style={{padding:'9px 14px',fontSize:10,letterSpacing:2,color:'#888',textTransform:'uppercase',borderBottom:'1px solid #1a1a1a',display:'flex',flexShrink:0,background: flash ? 'rgba(239,68,68,0.20)' : 'transparent',boxShadow: flash ? 'inset 0 0 0 1px rgba(239,68,68,0.6)' : 'none',transition:'all .25s ease'}}>
         <span>CURRENT INCIDENTS</span>
       </div>
-      <div style={{flex:1,overflowY:'auto'}}>
+      <div style={{flex:1,overflowY:'scroll',scrollbarWidth:'thin'}}>
         {sortedArticles.length===0 && <div style={{padding:30,color:'#444',fontSize:11,textAlign:'center'}}>LOADING INCIDENTS…</div>}
         {sortedArticles.map((a,i) => {
           const itemKey = a.url || `${a.title}|${a.seendate}`

@@ -21,16 +21,26 @@ const OPENCLAW_SESSION_KEY = process.env.OPENCLAW_SESSION_KEY || 'agent:main:web
 
 const J7_USERNAME = process.env.J7_USERNAME || '';
 const J7_PASSWORD = process.env.J7_PASSWORD || '';
+const J7_CHAT_MODE = (process.env.J7_CHAT_MODE || 'mute').trim();
 let j7Token = process.env.J7_TOKEN || '';
 let j7TokenExpAt = null;
 const BTC_POLL_MS = Number(process.env.BTC_POLL_MS || 5000);
 const FLIGHTS_POLL_MS = Number(process.env.FLIGHTS_POLL_MS || 30000);
 const INCIDENTS_POLL_MS = Number(process.env.INCIDENTS_POLL_MS || 60000);
-const MACRO_POLL_MS = Number(process.env.MACRO_POLL_MS || 5000);
+const MACRO_POLL_MS = Number(process.env.MACRO_POLL_MS || 2000);
+const PPI_POLL_MS = Number(process.env.PPI_POLL_MS || 30000);
+const SECTOR_POLL_MS = Number(process.env.SECTOR_POLL_MS || 30000);
+const TELEGRAM_INTEL_POLL_MS = Number(process.env.TELEGRAM_INTEL_POLL_MS || 60000);
+const TELEGRAM_RELAY_URL = process.env.TELEGRAM_RELAY_URL || '';
+const TELEGRAM_RELAY_KEY = process.env.TELEGRAM_RELAY_KEY || '';
+const TELEGRAM_CHANNELS = (process.env.TELEGRAM_CHANNELS || 'VahidOnline,abualiexpress,AuroraIntel,BNONews,ClashReport,DeepStateUA,DefenderDome,englishabuali,iranintltv,kpszsu,LiveUAMap,OSINTdefender,OsintUpdates,bellingcat,CyberDetective,GeopoliticalCenter,Middle_East_Spectator,MiddleEastNow_Breaking,nexta_tv,OSINTIndustries,Osintlatestnews,osintlive,OsintTv,spectatorindex,wfwitness,war_monitor').split(',').map(x=>x.trim()).filter(Boolean);
 const MAX_SIGNALS = Number(process.env.MAX_SIGNALS || 500);
 
-const HORUS_BRIDGE_PRIMER = `You are the Horus site agent. Follow /root/horus/horus-skill/SKILL.md as authoritative operating context. Keep answers concise, practical, and specific to Horus architecture (relay-first, persisted data files, no direct frontend upstream fetches unless explicitly requested). When unsure, prioritize what is currently implemented in /root/horus over generic suggestions.`;
+const HORUS_BRIDGE_PRIMER = `You are the Horus site agent. Follow /root/horus/horus-skill/SKILL.md as authoritative operating context. Keep answers concise, practical, and specific to Horus architecture (relay-first, persisted data files, no direct frontend upstream fetches unless explicitly requested). Use Horus data files when relevant: signals.ndjson, incidents.json, flights.json, btc.json, macro.json, telegram-intel.json, sector-heatmap.json, ppi.json. When unsure, prioritize what is currently implemented in /root/horus over generic suggestions.`;
 const FINNHUB_KEY = process.env.FINNHUB_KEY || '';
+const OPENSKY_CLIENT_ID = process.env.OPENSKY_CLIENT_ID || '';
+const OPENSKY_CLIENT_SECRET = process.env.OPENSKY_CLIENT_SECRET || '';
+const OPENSKY_RELAY_URL = (process.env.OPENSKY_RELAY_URL || '').trim();
 
 const execFileAsync = promisify(execFile);
 
@@ -42,7 +52,7 @@ const state = {
   status: {
     startedAt: Date.now(),
     j7: { connected: false, lastConnectAt: null, lastError: null },
-    pollers: { btc: null, flights: null, incidents: null },
+    pollers: { btc: null, flights: null, incidents: null, macro: null, ppi: null, sectors: null, telegramIntel: null },
   }
 };
 
@@ -124,8 +134,28 @@ const norm = c => (c || '').trim().toUpperCase();
 const isMil = c => MIL.some(h => norm(c).startsWith(h));
 
 async function fetchFlights() {
-  const r = await fetch('https://opensky-network.org/api/states/all');
-  const j = await r.json();
+  let j = null;
+
+  // 1) Preferred: OpenSky relay endpoint (worldmonitor-style deployment)
+  if (OPENSKY_RELAY_URL) {
+    try {
+      const relayUrl = `${OPENSKY_RELAY_URL.replace(/\/$/, '')}/opensky`;
+      const rr = await fetch(relayUrl, { headers: { Accept: 'application/json' } });
+      if (rr.ok) j = await rr.json();
+    } catch {}
+  }
+
+  // 2) Direct OpenSky with optional credentials
+  if (!j) {
+    const headers = { Accept: 'application/json' };
+    if (OPENSKY_CLIENT_ID && OPENSKY_CLIENT_SECRET) {
+      const basic = Buffer.from(`${OPENSKY_CLIENT_ID}:${OPENSKY_CLIENT_SECRET}`).toString('base64');
+      headers.Authorization = `Basic ${basic}`;
+    }
+    const r = await fetch('https://opensky-network.org/api/states/all', { headers });
+    j = await r.json();
+  }
+
   const states = Array.isArray(j?.states) ? j.states : [];
   const flights = [];
   for (const x of states) {
@@ -140,26 +170,38 @@ async function fetchFlights() {
       speedKmh: typeof vel === 'number' ? Math.round(vel * 3.6) : null,
       icao24: (x[0] || '').toUpperCase()
     });
-    if (flights.length >= 250) break;
+    if (flights.length >= 500) break;
   }
-  return { source: 'opensky', count: flights.length, flights, ts: Date.now(), iso: nowIso() };
+  return { source: OPENSKY_RELAY_URL ? 'opensky-relay' : 'opensky', count: flights.length, flights, ts: Date.now(), iso: nowIso() };
 }
 
 async function fetchIncidents() {
   const feeds = [
+    // existing core
     { source: 'reuters', url: 'https://www.reuters.com/arc/outboundfeeds/news-rss/?outputType=xml' },
     { source: 'reuters-breakingviews', url: 'https://www.reuters.com/arc/outboundfeeds/rss/category/breakingviews/?outputType=xml' },
     { source: 'aljazeera', url: 'https://www.aljazeera.com/xml/rss/all.xml' },
     { source: 'bbc-world', url: 'http://feeds.bbci.co.uk/news/world/rss.xml' },
     { source: 'defensenews', url: 'https://www.defensenews.com/arc/outboundfeeds/rss/?outputType=xml' },
     { source: 'politico-defense', url: 'http://rss.politico.com/defense.xml' },
-    { source: 'bloomberg-markets', url: 'https://www.bloomberg.com/feeds/markets/news.rss' },
+    { source: 'bloomberg-markets', url: 'https://feeds.bloomberg.com/markets/news.rss' },
     { source: 'jpost', url: 'https://www.jpost.com/rss/rssfeedsfrontpage.aspx' },
     { source: 'timesofisrael', url: 'https://www.timesofisrael.com/feed/' },
     { source: 'kyiv-independent', url: 'https://kyivindependent.com/news-archive/rss/' },
     { source: 'ukrainska-pravda', url: 'https://www.pravda.com.ua/eng/rss/' },
     { source: 'crisisgroup', url: 'https://www.crisisgroup.org/rss/139' },
-    { source: 'financialjuice', url: 'https://www.financialjuice.com/feed.ashx?xy=rss' }
+    { source: 'financialjuice', url: 'https://www.financialjuice.com/feed.ashx?xy=rss' },
+
+    // worldmonitor-inspired channels added for live signal coverage
+    { source: 'guardian-world', url: 'https://www.theguardian.com/world/rss' },
+    { source: 'ap-news', url: 'https://news.google.com/rss/search?q=site:apnews.com&hl=en-US&gl=US&ceid=US:en' },
+    { source: 'reuters-world', url: 'https://news.google.com/rss/search?q=site:reuters.com+world&hl=en-US&gl=US&ceid=US:en' },
+    { source: 'reuters-business', url: 'https://news.google.com/rss/search?q=site:reuters.com+business+markets&hl=en-US&gl=US&ceid=US:en' },
+    { source: 'bbc-middle-east', url: 'https://feeds.bbci.co.uk/news/world/middle_east/rss.xml' },
+    { source: 'haaretz', url: 'https://news.google.com/rss/search?q=site:haaretz.com+when:7d&hl=en-US&gl=US&ceid=US:en' },
+    { source: 'arab-news', url: 'https://news.google.com/rss/search?q=site:arabnews.com+when:7d&hl=en-US&gl=US&ceid=US:en' },
+    { source: 'war-on-the-rocks', url: 'https://warontherocks.com/feed/' },
+    { source: 'responsible-statecraft', url: 'https://responsiblestatecraft.org/feed/' }
   ];
 
   const parseRss = (xml, source) => {
@@ -236,33 +278,71 @@ async function fetchIncidents() {
 
 
 
+
+async function fetchYahooQuote(symbol) {
+  try {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`;
+    const r = await fetch(url, { headers: { 'User-Agent': 'HorusRelay/1.0' } });
+    if (!r.ok) throw new Error(`yahoo ${symbol} status ${r.status}`);
+    const j = await r.json();
+    const result = j?.chart?.result?.[0];
+    const meta = result?.meta || {};
+    const current = Number(meta?.regularMarketPrice ?? NaN);
+    const prev = Number(meta?.previousClose ?? NaN);
+    if (!Number.isFinite(current)) throw new Error(`yahoo ${symbol} invalid price`);
+    const percent = Number.isFinite(prev) && prev > 0 ? ((current - prev) / prev) * 100 : null;
+    return { current, change: Number.isFinite(percent) ? percent : null };
+  } catch {
+    return null;
+  }
+}
+
 async function fetchMacro() {
   const out = { ts: Date.now(), iso: nowIso(), symbols: {} };
-  if (!FINNHUB_KEY) return out;
 
-  const targets = [
+  // Yahoo-first market stack (lower lag for this deployment)
+  const yahooTargets = [
     { key: 'SPY', symbol: 'SPY' },
     { key: 'QQQ', symbol: 'QQQ' },
-    { key: 'DXY', symbol: 'UUP' }
+    { key: 'DXY', symbol: 'UUP' },
+    { key: 'AAPL', symbol: 'AAPL' },
+    { key: 'MSFT', symbol: 'MSFT' },
+    { key: 'NVDA', symbol: 'NVDA' },
+    { key: 'VIX', symbol: '^VIX' },
+    { key: 'SOL', symbol: 'SOL-USD' },
+    { key: 'GOLD', symbol: 'GC=F' },
+    { key: 'OIL', symbol: 'CL=F' },
+    { key: 'BTC', symbol: 'BTC-USD' }
   ];
 
-  const settled = await Promise.allSettled(targets.map(async (t) => {
-    const r = await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(t.symbol)}&token=${FINNHUB_KEY}`);
-    if (!r.ok) throw new Error(`${t.symbol} status ${r.status}`);
-    const j = await r.json();
-    return { key: t.key, quote: j };
+  const yahooSettled = await Promise.allSettled(yahooTargets.map(async (t) => {
+    const q = await fetchYahooQuote(t.symbol);
+    return { key: t.key, quote: q };
   }));
 
-  for (const row of settled) {
-    if (row.status === 'fulfilled') {
-      const q = row.value.quote || {};
+  for (const row of yahooSettled) {
+    if (row.status === 'fulfilled' && row.value.quote) {
+      const q = row.value.quote;
       out.symbols[row.value.key] = {
-        current: Number(q.c || 0),
-        change: Number(q.d || 0),
-        percent: Number(q.dp || 0)
+        current: Number(q.current || 0),
+        change: null,
+        percent: Number.isFinite(Number(q.change)) ? Number(q.change) : null
       };
     }
   }
+
+  if (!out.symbols.SOL) {
+    try {
+      const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd&include_24hr_change=true');
+      if (r.ok) {
+        const j = await r.json();
+        const v = Number(j?.solana?.usd ?? NaN);
+        const p = Number(j?.solana?.usd_24h_change ?? NaN);
+        if (Number.isFinite(v)) out.symbols.SOL = { current: v, change: null, percent: Number.isFinite(p) ? p : null };
+      }
+    } catch {}
+  }
+
   return out;
 }
 
@@ -274,6 +354,158 @@ async function runMacroPoll() {
   } catch (e) {
     state.status.pollers.macro = { ok: false, at: Date.now(), err: String(e?.message || e) };
   }
+}
+
+
+async function fetchPpi() {
+  // placeholder until dedicated upstream is wired; persisted so agent + UI share same source of truth
+  const locations = [
+    { name: 'Extreme Pizza', status: 'ELEVATED', score: 65 },
+    { name: 'District Pizza Palace', status: 'QUIET', score: 0 },
+    { name: 'We, The Pizza', status: 'CLOSED', score: null },
+    { name: 'Papa Johns Pizza', status: 'QUIET', score: 3 },
+    { name: 'Pizzato Pizza', status: 'NORMAL', score: 31 }
+  ];
+  const weights = { ELEVATED: 1.3, NORMAL: 1, QUIET: 0.7, CLOSED: 0 };
+  let wsum = 0, wtot = 0;
+  for (const l of locations) {
+    if (typeof l.score !== 'number') continue;
+    const w = weights[l.status] ?? 1;
+    if (w <= 0) continue;
+    wsum += l.score * w;
+    wtot += w;
+  }
+  const weightedAvg = wtot > 0 ? Math.round(wsum / wtot) : 0;
+  return { weightedAvg, locations, ts: Date.now(), iso: nowIso() };
+}
+
+async function fetchSectorHeatmap() {
+  // placeholder baseline dataset, persisted for shared agent/UI access
+  const sectors = [
+    { name: 'Tech', value: -1.59 },
+    { name: 'Finance', value: -2.02 },
+    { name: 'Energy', value: 1.60 },
+    { name: 'Health', value: 1.77 },
+    { name: 'Consumer', value: -0.15 },
+    { name: 'Industrial', value: 0.25 },
+    { name: 'Staples', value: 1.31 },
+    { name: 'Utilities', value: 1.19 },
+    { name: 'Materials', value: 0.79 },
+    { name: 'Real Est', value: 0.50 },
+    { name: 'Comms', value: 1.15 },
+    { name: 'Sensi', value: -1.37 }
+  ];
+  return { sectors, ts: Date.now(), iso: nowIso() };
+}
+
+
+async function fetchTelegramIntel(limit = 80) {
+  if (TELEGRAM_RELAY_URL) {
+    const url = new URL('/telegram/feed', TELEGRAM_RELAY_URL);
+    url.searchParams.set('limit', String(Math.max(1, Math.min(200, limit))));
+
+    const headers = { Accept: 'application/json' };
+    if (TELEGRAM_RELAY_KEY) {
+      headers['x-relay-key'] = TELEGRAM_RELAY_KEY;
+      headers.Authorization = `Bearer ${TELEGRAM_RELAY_KEY}`;
+    }
+
+    const r = await fetch(url.toString(), { headers });
+    if (!r.ok) throw new Error(`telegram relay status ${r.status}`);
+    const j = await r.json();
+
+    return {
+      source: 'telegram-relay',
+      enabled: true,
+      earlySignal: Boolean(j?.earlySignal),
+      count: Number(j?.count || (j?.items || []).length || 0),
+      updatedAt: j?.updatedAt || nowIso(),
+      items: Array.isArray(j?.items) ? j.items : []
+    };
+  }
+
+  // fallback mode (no external relay): scrape public Telegram channel pages
+  return fetchTelegramIntelFromPublicChannels(limit);
+}
+
+
+function classifyTelegramTopic(text = '') {
+  const t = String(text).toLowerCase();
+  if (/breaking|urgent|developing|just in|alert/.test(t)) return 'breaking';
+  if (/israel|gaza|iran|lebanon|syria|houthi|middle east|idf/.test(t)) return 'middleeast';
+  if (/strike|drone|missile|attack|troops|artillery|conflict|war/.test(t)) return 'conflict';
+  if (/osint|geolocat|satellite|visual|bellingcat/.test(t)) return 'osint';
+  if (/election|minister|parliament|president|policy|sanction/.test(t)) return 'politics';
+  if (/warning|evacuat|shelter|sirens/.test(t)) return 'alerts';
+  return 'all';
+}
+
+async function fetchTelegramPublicChannel(channel, limit = 10) {
+  const url = `https://t.me/s/${encodeURIComponent(channel)}`;
+  const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 HorusRelay/1.0' } });
+  if (!r.ok) throw new Error(`telegram channel ${channel} status ${r.status}`);
+  const html = await r.text();
+
+  const postMatches = [...html.matchAll(/data-post="([^"]+)"/g)];
+  const items = [];
+  const recent = postMatches.slice(Math.max(0, postMatches.length - limit));
+
+  for (let i = 0; i < recent.length; i++) {
+    const m = recent[i];
+    const idVal = m[1] || '';
+    const from = m.index || 0;
+    const to = i + 1 < recent.length ? (recent[i + 1].index || html.length) : html.length;
+    const seg = html.slice(from, to);
+
+    const href = (seg.match(/class="tgme_widget_message_date"[^>]*href="([^"]+)"/) || [])[1] || `https://t.me/${channel}`;
+    const dt = (seg.match(/<time[^>]+datetime="([^"]+)"/) || [])[1] || nowIso();
+    let text = (seg.match(/<div class="tgme_widget_message_text[^"]*"[\s\S]*?<\/div>/) || [])[0] || '';
+    text = text
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&#39;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!text) continue;
+
+    items.push({
+      id: `tg-${idVal || (channel + '-' + dt)}`,
+      source: 'telegram',
+      channel: `@${channel}`,
+      channelTitle: `@${channel}`,
+      url: href,
+      ts: dt,
+      text,
+      topic: classifyTelegramTopic(text),
+      tags: [],
+      earlySignal: /breaking|urgent|alert|strike|missile|drone/i.test(text)
+    });
+  }
+
+  return items;
+}
+
+async function fetchTelegramIntelFromPublicChannels(limit = 80) {
+  const per = Math.max(4, Math.min(20, Math.ceil(limit / Math.max(1, TELEGRAM_CHANNELS.length))));
+  const settled = await Promise.allSettled(TELEGRAM_CHANNELS.map(ch => fetchTelegramPublicChannel(ch, per)));
+  const items = [];
+  for (const row of settled) {
+    if (row.status === 'fulfilled') items.push(...row.value);
+  }
+  items.sort((a,b)=> new Date(b.ts).getTime() - new Date(a.ts).getTime());
+  const sliced = items.slice(0, limit);
+  return {
+    source: 'telegram-public',
+    enabled: true,
+    earlySignal: sliced.some(x => x.earlySignal),
+    count: sliced.length,
+    updatedAt: nowIso(),
+    items: sliced
+  };
 }
 
 // ---------- polling workers ----------
@@ -308,6 +540,38 @@ async function runIncidentsPoll() {
   }
 }
 
+
+async function runPpiPoll() {
+  try {
+    const data = await fetchPpi();
+    await writeJson('ppi.json', data);
+    state.status.pollers.ppi = { ok: true, at: Date.now(), count: data.locations?.length || 0 };
+  } catch (e) {
+    state.status.pollers.ppi = { ok: false, at: Date.now(), err: String(e?.message || e) };
+  }
+}
+
+async function runSectorPoll() {
+  try {
+    const data = await fetchSectorHeatmap();
+    await writeJson('sector-heatmap.json', data);
+    state.status.pollers.sectors = { ok: true, at: Date.now(), count: data.sectors?.length || 0 };
+  } catch (e) {
+    state.status.pollers.sectors = { ok: false, at: Date.now(), err: String(e?.message || e) };
+  }
+}
+
+
+async function runTelegramIntelPoll() {
+  try {
+    const data = await fetchTelegramIntel();
+    await writeJson('telegram-intel.json', data);
+    state.status.pollers.telegramIntel = { ok: true, at: Date.now(), count: data.count || 0, enabled: data.enabled !== false };
+  } catch (e) {
+    state.status.pollers.telegramIntel = { ok: false, at: Date.now(), err: String(e?.message || e) };
+  }
+}
+
 // ---------- J7 auth + signals collector ----------
 async function loginJ7() {
   if (!J7_USERNAME || !J7_PASSWORD) return null;
@@ -335,6 +599,16 @@ async function loginJ7() {
   }
 }
 
+function sendJ7ChatMode(ws) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  if (!J7_CHAT_MODE) return;
+  const sessionId = j7Token;
+  if (!sessionId) return;
+  try {
+    ws.send(`42["set_chat_mode",{"sessionId":"${sessionId}","chatMode":"${J7_CHAT_MODE}"}]`);
+  } catch {}
+}
+
 function startJ7Collector() {
   if (!j7Token && !J7_USERNAME) {
     state.status.j7.lastError = 'J7 token/credentials missing';
@@ -348,13 +622,17 @@ function startJ7Collector() {
       state.status.j7.connected = true;
       state.status.j7.lastConnectAt = Date.now();
       ws.send('40');
-      setTimeout(() => { if (j7Token) ws.send(`42["user_connected","${j7Token}"]`); }, 500);
+      setTimeout(() => {
+        if (j7Token) ws.send(`42["user_connected","${j7Token}"]`);
+        sendJ7ChatMode(ws);
+      }, 500);
     });
 
     ws.on('message', async (buf) => {
       const raw = String(buf);
       if (raw === '2') {
         ws.send('3');
+        sendJ7ChatMode(ws);
         return;
       }
       if (!raw.startsWith('42[')) return;
@@ -403,13 +681,33 @@ function startJ7Collector() {
 
 async function mergeFastRssIntoSignals() {
   const incidents = await readJson('incidents.json', { articles: [] });
+  const FAST_SIGNAL_SOURCES = new Set([
+    'financialjuice'
+  ]);
+
   const fast = (incidents.articles || [])
-    .filter(a => ['jpost', 'financialjuice'].includes(String(a.source || '').toLowerCase()))
+    .filter(a => FAST_SIGNAL_SOURCES.has(String(a.source || '').toLowerCase()))
     .slice(0, 120)
     .map(a => ({
       id: `rss-${a.url || `${a.title}|${a.seendate}`}`,
       type: 'geo',
-      author: a.source === 'financialjuice' ? 'FinancialJuice' : 'Jerusalem Post',
+      author: ({
+        financialjuice: 'FinancialJuice',
+        jpost: 'Jerusalem Post',
+        'reuters-world': 'Reuters World',
+        'reuters-business': 'Reuters Business',
+        reuters: 'Reuters',
+        'ap-news': 'AP News',
+        'bbc-world': 'BBC World',
+        'bbc-middle-east': 'BBC Middle East',
+        aljazeera: 'Al Jazeera',
+        timesofisrael: 'Times of Israel',
+        haaretz: 'Haaretz',
+        'arab-news': 'Arab News',
+        'kyiv-independent': 'Kyiv Independent',
+        'ukrainska-pravda': 'Ukrainska Pravda',
+        'guardian-world': 'Guardian World'
+      }[String(a.source || '').toLowerCase()] || String(a.source || 'RSS').toUpperCase()),
       text: a.title,
       url: a.url,
       ts: a.ingestedTs || Date.now(),
@@ -476,6 +774,23 @@ app.get('/api/incidents', async (_req, res) => {
   res.json(incidents);
 });
 
+
+app.get('/api/ppi', async (_req, res) => {
+  const ppi = await readJson('ppi.json', { weightedAvg: 0, locations: [], ts: null });
+  res.json(ppi);
+});
+
+app.get('/api/sector-heatmap', async (_req, res) => {
+  const sectors = await readJson('sector-heatmap.json', { sectors: [], ts: null });
+  res.json(sectors);
+});
+
+
+app.get('/api/telegram-intel', async (_req, res) => {
+  const data = await readJson('telegram-intel.json', { source: 'telegram-relay', enabled: false, earlySignal: false, count: 0, updatedAt: null, items: [] });
+  res.json(data);
+});
+
 app.get('/api/markets', async (_req, res) => {
   const markets = await readJson('markets.json', { markets: [], ts: null });
   res.json(markets.markets || []);
@@ -483,19 +798,30 @@ app.get('/api/markets', async (_req, res) => {
 
 app.get('/api/signals', async (_req, res) => {
   const signals = await readNdjson('signals.ndjson', []);
-  res.json({ source: 'mixed', signals: signals.sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0, MAX_SIGNALS), ts: Date.now(), iso: nowIso() });
+  const filtered = signals.filter(s => {
+    if (!String(s.id || '').startsWith('rss-')) return true;
+    return String(s.author || '').toLowerCase() === 'financialjuice';
+  });
+  res.json({ source: 'mixed', signals: filtered.sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0, MAX_SIGNALS), ts: Date.now(), iso: nowIso() });
 });
 
 app.get('/api/snapshots', async (_req, res) => {
-  const [btc, macro, flights, incidents, signals, chat] = await Promise.all([
+  const [btc, macro, flights, incidents, signals, chat, ppi, sectorHeatmap, telegramIntel] = await Promise.all([
     readJson('btc.json', null),
     readJson('macro.json', null),
     readJson('flights.json', null),
     readJson('incidents.json', null),
-    (async () => ({ source: 'mixed', signals: await readNdjson('signals.ndjson', []), ts: Date.now() }))(),
-    readJson('chat.json', { messages: [] })
+    (async () => {
+      const raw = await readNdjson('signals.ndjson', []);
+      const signals = raw.filter(s => !String(s.id || '').startsWith('rss-') || String(s.author || '').toLowerCase() === 'financialjuice');
+      return { source: 'mixed', signals, ts: Date.now() };
+    })(),
+    readJson('chat.json', { messages: [] }),
+    readJson('ppi.json', { weightedAvg: 0, locations: [], ts: null }),
+    readJson('sector-heatmap.json', { sectors: [], ts: null }),
+    readJson('telegram-intel.json', { source: 'telegram-relay', enabled: false, earlySignal: false, count: 0, updatedAt: null, items: [] })
   ]);
-  res.json({ ts: Date.now(), btc, macro, flights, incidents, signals, chat, status: state.status });
+  res.json({ ts: Date.now(), btc, macro, flights, incidents, signals, chat, ppi, sectorHeatmap, telegramIntel, status: state.status });
 });
 
 app.get('/api/chat', async (_req, res) => {
@@ -533,6 +859,9 @@ await Promise.allSettled([
   runFlightsPoll(),
   runIncidentsPoll(),
   runMacroPoll(),
+  runPpiPoll(),
+  runSectorPoll(),
+  runTelegramIntelPoll(),
 rewriteNdjson('signals.ndjson', await readNdjson('signals.ndjson', []), MAX_SIGNALS)
 ]);
 
@@ -540,6 +869,9 @@ setInterval(runBtcPoll, BTC_POLL_MS);
 setInterval(runFlightsPoll, FLIGHTS_POLL_MS);
 setInterval(runIncidentsPoll, INCIDENTS_POLL_MS);
 setInterval(runMacroPoll, MACRO_POLL_MS);
+setInterval(runPpiPoll, PPI_POLL_MS);
+setInterval(runSectorPoll, SECTOR_POLL_MS);
+setInterval(runTelegramIntelPoll, TELEGRAM_INTEL_POLL_MS);
 if (!j7Token) await loginJ7();
 startJ7Collector();
 

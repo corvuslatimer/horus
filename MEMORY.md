@@ -55,3 +55,24 @@ Purpose: durable project memory for Horus (architecture changes, data-source cha
 - Why: Users usually want situational updates, not implementation details.
 - Impact: Better UX and clearer communication.
 - Follow-up: Maintain this as a hard style rule for Horus agent replies.
+
+## 2026-03-01 20:43 UTC — Cross-channel continuity + auto-intel default locked
+- What happened: Defined Horus behavior as one seamless agent across external messaging (Telegram/Discord/iMessage) and Horus in-dashboard chat.
+- Change made: Updated both skill files (`horus-skill/SKILL.md` and `horus-skill/SubagentSKILL.md`) to require shared identity/memory continuity across both modes.
+- Why: User needs the same assistant experience and context continuity regardless of entry channel.
+- Impact: Agents should now answer Horus intel questions from any channel without mode-switch friction.
+- Follow-up: Keep this enforced in future skill edits and chat bridge updates.
+
+## 2026-03-01 20:44 UTC — Horus intel auto-check behavior clarified
+- What happened: Locked default response workflow for geo/event prompts (example: "what’s happening in israel").
+- Change made: Skills now require automatic read/synthesis from Horus data before replying (`/root/horus/horus-relay/data/signals.ndjson`, `incidents.json`, optional `flights.json`).
+- Why: User wants direct intel answers, not back-and-forth setup questions.
+- Impact: Faster, data-driven event summaries by default.
+- Follow-up: Preserve concise bullet style + uncertainty caveats; avoid technical narration unless explicitly requested.
+
+## 2026-03-01 20:45 UTC — Durable Horus context recorded
+- What happened: Explicitly documented foundational Horus memory requirements.
+- Change made: Durable memory now includes: what Horus is, where Horus data lives (`/root/horus/horus-relay/data/`), and that both external channels + Horus chat are one continuous assistant mode.
+- Why: Prevent context loss between sessions/sub-agents.
+- Impact: Better continuity and less re-briefing overhead.
+- Follow-up: Keep MEMORY.md concise and update only durable rules/decisions.

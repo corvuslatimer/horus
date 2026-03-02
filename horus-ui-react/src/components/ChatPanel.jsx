@@ -16,7 +16,7 @@ function renderMarkdown(text = '') {
   return html
 }
 
-export default function ChatPanel({ heightPx = 338 }) {
+export default function ChatPanel({ heightPx = 338, hideHeader = false, fill = false }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const logRef = useRef(null)
@@ -47,8 +47,8 @@ export default function ChatPanel({ heightPx = 338 }) {
   return (
     <>
       <style>{`.chat-log::-webkit-scrollbar{display:none;} .chat-md a{color:#5aa2ff;text-decoration:none} .chat-md code{background:#111;padding:1px 4px;border-radius:4px;font-family:monospace} .chat-md pre{background:#101010;border:1px solid #2a2a2a;padding:8px;border-radius:6px;overflow:auto}`}</style>
-      <div style={{height:`${heightPx}px`,display:'flex',flexDirection:'column',borderTop:'1px solid #1a1a1a',background:'#0b0b0b',minHeight:120,maxHeight:'75vh'}}>
-        <div style={{padding:'8px 10px',fontSize:10,letterSpacing:2,color:'#888',borderBottom:'1px solid #1a1a1a',flexShrink:0}}>AGENT CHAT</div>
+      <div style={{height: fill ? '100%' : `${heightPx}px`,display:'flex',flexDirection:'column',borderTop:'1px solid #1a1a1a',background:'#0b0b0b',minHeight:120,maxHeight: fill ? 'none' : '75vh'}}>
+        {!hideHeader && <div style={{padding:'8px 10px',fontSize:10,letterSpacing:2,color:'#888',borderBottom:'1px solid #1a1a1a',flexShrink:0}}>AGENT CHAT</div>}
         <div ref={logRef} style={{flex:1,overflowY:'auto',scrollbarWidth:'none',msOverflowStyle:'none',padding:'8px 10px',display:'flex',flexDirection:'column',gap:6}} className="chat-log">
           {messages.map((m,i)=>(
             <div key={i} className="chat-md" style={{fontSize:11,lineHeight:1.4,padding:'6px 8px',borderRadius:6,maxWidth:'95%',alignSelf:m.role==='user'?'flex-end':'flex-start',background:m.role==='user'?'#1b2a3d':'#1b1b1b',color:m.role==='user'?'#dbeafe':'#ddd',border:m.role==='assistant'?'1px solid #2a2a2a':'none'}} dangerouslySetInnerHTML={{__html: renderMarkdown(m.text)}} />

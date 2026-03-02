@@ -67,6 +67,9 @@ Why NDJSON: append-friendly, resilient under frequent writes, easy rolling trim.
 - `flights.json`
 - `incidents.json`
 - `chat.json`
+- `telegram-intel.json`
+- `sector-heatmap.json`
+- `ppi.json`
 
 ## Relay endpoints (frontend should use only these)
 
@@ -79,6 +82,9 @@ Why NDJSON: append-friendly, resilient under frequent writes, easy rolling trim.
 - `GET /api/chat`
 - `POST /api/chat`
 - `GET /api/snapshots`
+- `GET /api/telegram-intel`
+- `GET /api/sector-heatmap`
+- `GET /api/ppi`
 
 ## Upstreams
 
@@ -86,17 +92,11 @@ Why NDJSON: append-friendly, resilient under frequent writes, easy rolling trim.
 
 Multi-source incidents aggregator includes Reuters/BBC/Al Jazeera/regional + FinancialJuice and others.
 
-### Finnhub (requires user key)
+### Markets upstreams (Yahoo + CoinGecko fallback)
 
-- Used for macro tiles (SPY/QQQ/UUP proxy)
-- Registration is fast: `https://finnhub.io/register`
-- Create an account (email + password) and get an API key from dashboard
-- Use a real account you control and keep keys private
-- Put key in relay `.env`
-
-```env
-FINNHUB_KEY=...
-```
+- Macro tiles are sourced from Yahoo quotes in relay runtime.
+- SOL is sourced via CoinGecko fallback when needed.
+- Frontend should never call third-party market APIs directly; use relay snapshots/endpoints only.
 
 ### J7
 
@@ -284,7 +284,6 @@ BTC_POLL_MS=5000
 FLIGHTS_POLL_MS=90000
 INCIDENTS_POLL_MS=60000
 
-FINNHUB_KEY=
 J7_USERNAME=
 J7_PASSWORD=
 
@@ -293,6 +292,48 @@ OPENCLAW_SESSION_KEY=agent:main:web:horus-chat
 
 
 
+## Dual-channel continuity contract (critical)
+
+Horus must feel like **one continuous agent** across two interaction modes:
+
+1. External messaging channels (Telegram, Discord, iMessage, etc.)
+2. In-dashboard Horus chat
+
+Behavior requirements:
+- Treat both modes as the same assistant identity and memory continuity.
+- User should be able to text from any channel and ask Horus intel questions seamlessly.
+- User should be able to continue the same conversation from Horus chat without losing context.
+- Keep identity/voice consistent in both modes.
+
+## Auto-intel response policy for event questions (critical)
+
+For questions like:
+- “what’s happening in israel?”
+- “what’s happening in iran right now?”
+- “any updates in gaza?”
+
+Do this by default:
+1. Pull latest Horus data first (`signals.ndjson`, `incidents.json`, optionally `flights.json`, plus `telegram-intel.json`, `sector-heatmap.json`, and `ppi.json` when relevant).
+2. Synthesize a concise user-facing update immediately.
+3. Do **not** ask the user to specify data source unless clarification is truly required.
+4. Avoid technical narration unless explicitly requested.
+
+Default output shape:
+- “Here’s what’s happening right now:”
+- 4–8 concise bullets
+- Brief uncertainty caveats where needed
+
+## Memory + identity persistence requirement
+
+Document Horus context in:
+
+`/root/horus/MEMORY.md`
+
+At minimum keep durable notes for:
+- What Horus is (purpose + UX)
+- Where Horus data lives (`/root/horus/horus-relay/data/`)
+- How to answer intel questions from data by default
+- Cross-channel continuity expectation (external chat + Horus chat = same agent)
 
 ## Horus memory file (required)
 
@@ -394,8 +435,6 @@ Short rule: **custom private integrations are encouraged; secret handling must s
 - Don’t add direct third-party fetches in React components.
 - Don’t expose raw backend/tool errors to users.
 - Don’t bypass relay persistence model.
-
-
 
 ## Sub-agent companion
 

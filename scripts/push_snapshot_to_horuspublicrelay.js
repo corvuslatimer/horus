@@ -8,8 +8,8 @@ const INGEST_TOKEN = process.env.INGEST_TOKEN || '';
 function slimSnapshot(snap) {
   const s = { ...snap };
   // keep payload bounded
-  if (s?.signals?.signals?.length > 500) s.signals.signals = s.signals.signals.slice(0, 500);
-  if (s?.incidents?.articles?.length > 300) s.incidents.articles = s.incidents.articles.slice(0, 300);
+  if (s?.signals?.signals?.length > 50) s.signals.signals = s.signals.signals.slice(0, 50);
+  if (s?.incidents?.articles?.length > 30) s.incidents.articles = s.incidents.articles.slice(0, 30);
   if (s?.flights?.flights?.length > 500) s.flights.flights = s.flights.flights.slice(0, 500);
   return s;
 }
