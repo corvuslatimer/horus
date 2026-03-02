@@ -8,7 +8,7 @@ It combines live signals, incident aggregation, military flight context, market 
 
 It is designed to integrate directly with your OpenClaw agent, so you can text it from anywhere on the go with prompts like: "how are things in iran" or "what's the markets looking like".
 
-Horus is opensource to empower the people. All donations should be sent to my Solana wallet `hgof84NNrXzQzxPTKhixokrkPtreMFs4gXzXeFgUK5j`. Fully optional.
+Horus is opensource to empower the people. All donations should be sent to my Solana wallet `hgof84NNrXzQzxPTKhixokrkPtreMFs4gXzXeFgUK5j`. Fully optional. You can also buy this token to support me: `DGeGM3JXY1wkLnrBNf7Y1Hve3Dnq2MjWTrR9ySzUpump`.
 
 ![Horus dashboard](https://corvuslatimer.com/images/horus-dashboard-latest.jpg)
 
