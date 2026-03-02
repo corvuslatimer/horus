@@ -180,7 +180,7 @@ export default function App() {
 
 
       {feedsOpen && (
-        <div style={{ position: 'fixed', left: feedsPos.x, top: feedsPos.y, width: 1120, zIndex: 9998, boxShadow: '0 10px 35px rgba(0,0,0,.55)', borderRadius: 8, overflow: 'hidden', border: '1px solid #2a2a2a', background: '#0d0d0d' }}>
+        <div style={{ position: 'fixed', left: feedsPos.x, top: feedsPos.y, width: 1120, minWidth: 640, minHeight: 360, maxWidth: 'calc(100vw - 16px)', maxHeight: 'calc(100vh - 64px)', zIndex: 9998, boxShadow: '0 10px 35px rgba(0,0,0,.55)', borderRadius: 8, overflow: 'auto', resize: 'both', border: '1px solid #2a2a2a', background: '#0d0d0d' }}>
           <div onMouseDown={startFeedsDrag} style={{ cursor: 'move', userSelect: 'none', background: '#111', borderBottom: '1px solid #2a2a2a', color: '#bbb', fontSize: 11, letterSpacing: 1, padding: '7px 10px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
             <span>LIVE YOUTUBE FEEDS</span>
             <button onClick={() => setFeedsOpen(false)} style={{ background:'#1a1a1a', border:'1px solid #333', color:'#bbb', borderRadius:6, padding:'3px 8px', cursor:'pointer' }}>Close</button>
