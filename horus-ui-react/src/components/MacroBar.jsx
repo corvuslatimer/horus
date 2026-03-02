@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 const RELAY = import.meta.env.VITE_RELAY_URL || 'http://100.83.149.17:8787'
 
 const CHART_SYMBOL = {
@@ -14,6 +14,20 @@ const CHART_SYMBOL = {
   OIL: 'AMEX:OILT',
 }
 
+
+const MARKETS_TIP_DISMISSED_KEY = 'horus_markets_chart_tip_dismissed_v1'
+const TUTORIAL_DONE_KEYS = [
+  'horus_tutorial_closed',
+  'horus_tutorial_completed',
+  'tutorialClosed',
+  'tutorialDismissed'
+]
+
+function isTruthyStorage(v) {
+  if (v == null) return false
+  const n = String(v).trim().toLowerCase()
+  return n === '1' || n === 'true' || n === 'yes' || n === 'done' || n === 'closed' || n === 'completed'
+}
 const MARKET_ITEMS = [
   { key: 'BTC', label: 'BTCUSD', prefix: '$' },
   { key: 'SPY', label: 'SPY', prefix: '$' },
@@ -31,6 +45,35 @@ export default function MacroBar() {
   const [symbols, setSymbols] = useState({})
   const [showChart, setShowChart] = useState(false)
   const [chartKey, setChartKey] = useState('BTC')
+  const [showMarketsTip, setShowMarketsTip] = useState(false)
+
+  const isHorusPublic = useMemo(() => {
+    if (typeof window === 'undefined') return false
+    const host = window.location.hostname.toLowerCase()
+    return host.includes('horuspublic') || host.includes('horus-public') || host.includes('horuspublic.app')
+  }, [])
+
+
+  useEffect(() => {
+    if (!isHorusPublic) return
+    try {
+      const tipDismissed = isTruthyStorage(localStorage.getItem(MARKETS_TIP_DISMISSED_KEY))
+      if (tipDismissed) {
+        setShowMarketsTip(false)
+        return
+      }
+
+      const tutorialDone = TUTORIAL_DONE_KEYS.some((k) => isTruthyStorage(localStorage.getItem(k)))
+      setShowMarketsTip(tutorialDone)
+    } catch {
+      setShowMarketsTip(false)
+    }
+  }, [isHorusPublic])
+
+  const closeMarketsTip = () => {
+    setShowMarketsTip(false)
+    try { localStorage.setItem(MARKETS_TIP_DISMISSED_KEY, 'true') } catch {}
+  }
 
   useEffect(() => {
     const load = async () => {
@@ -111,7 +154,21 @@ export default function MacroBar() {
   return (
     <>
       <div style={{ borderTop: '1px solid #1a1a1a', background: '#0b0b0b', padding: '6px 8px', flexShrink: 0 }}>
-        <div style={{ fontSize: 9, letterSpacing: 2, color: '#888', marginBottom: 7 }}>MARKETS</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7, position: 'relative' }}>
+          <div style={{ fontSize: 9, letterSpacing: 2, color: '#888' }}>MARKETS</div>
+          {showMarketsTip && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 10, color: '#cfe3ff', background: '#111827', border: '1px solid #2a3a66', padding: '4px 7px', borderRadius: 6 }}>
+              <span>click on any asset to try out the charts!</span>
+              <button
+                onClick={closeMarketsTip}
+                aria-label="Close markets tip"
+                style={{ background: 'transparent', border: 'none', color: '#9fb7e8', cursor: 'pointer', fontSize: 12, lineHeight: 1, padding: 0 }}
+              >
+                ×
+              </button>
+            </div>
+          )}
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, maxHeight: 170, overflowY: 'auto', paddingRight: 2 }}>
           {MARKET_ITEMS.map((m) => {
             const row = symbols?.[m.key] || {}
