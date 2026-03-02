@@ -34,8 +34,6 @@ const TELEGRAM_INTEL_POLL_MS = Number(process.env.TELEGRAM_INTEL_POLL_MS || 6000
 const MILITARY_BASES_POLL_MS = Number(process.env.MILITARY_BASES_POLL_MS || 3600000);
 const EARTHQUAKES_POLL_MS = Number(process.env.EARTHQUAKES_POLL_MS || 300000);
 const NUCLEAR_FACILITIES_POLL_MS = Number(process.env.NUCLEAR_FACILITIES_POLL_MS || 21600000);
-const TELEGRAM_RELAY_URL = process.env.TELEGRAM_RELAY_URL || '';
-const TELEGRAM_RELAY_KEY = process.env.TELEGRAM_RELAY_KEY || '';
 const TELEGRAM_PUBLIC_FEED_URL = process.env.TELEGRAM_PUBLIC_FEED_URL || 'https://worldmonitor.app/api/telegram-feed';
 const TELEGRAM_MANUAL_FALLBACK = String(process.env.TELEGRAM_MANUAL_FALLBACK || 'false').toLowerCase() === 'true';
 const TELEGRAM_CHANNELS_DEFAULT = ['VahidOnline','abualiexpress','AuroraIntel','BNONews','ClashReport','DeepStateUA','DefenderDome','englishabuali','iranintltv','kpszsu','LiveUAMap','OSINTdefender','OsintUpdates','bellingcat','CyberDetective','GeopoliticalCenter','Middle_East_Spectator','MiddleEastNow_Breaking','nexta_tv','OSINTIndustries','Osintlatestnews','osintlive','OsintTv','spectatorindex','wfwitness','war_monitor'];
@@ -499,30 +497,6 @@ async function runNuclearFacilitiesPoll() {
 
 
 async function fetchTelegramIntel(limit = 80) {
-  if (TELEGRAM_RELAY_URL) {
-    const url = new URL('/telegram/feed', TELEGRAM_RELAY_URL);
-    url.searchParams.set('limit', String(Math.max(1, Math.min(200, limit))));
-
-    const headers = { Accept: 'application/json' };
-    if (TELEGRAM_RELAY_KEY) {
-      headers['x-relay-key'] = TELEGRAM_RELAY_KEY;
-      headers.Authorization = `Bearer ${TELEGRAM_RELAY_KEY}`;
-    }
-
-    const r = await fetch(url.toString(), { headers });
-    if (!r.ok) throw new Error(`telegram relay status ${r.status}`);
-    const j = await r.json();
-
-    return {
-      source: 'telegram-relay',
-      enabled: true,
-      earlySignal: Boolean(j?.earlySignal),
-      count: Number(j?.count || (j?.items || []).length || 0),
-      updatedAt: j?.updatedAt || nowIso(),
-      items: Array.isArray(j?.items) ? j.items : []
-    };
-  }
-
   try {
     return await fetchTelegramIntelFromPublicApi(limit);
   } catch (e) {
