@@ -35,7 +35,7 @@ const MILITARY_BASES_POLL_MS = Number(process.env.MILITARY_BASES_POLL_MS || 3600
 const EARTHQUAKES_POLL_MS = Number(process.env.EARTHQUAKES_POLL_MS || 300000);
 const NUCLEAR_FACILITIES_POLL_MS = Number(process.env.NUCLEAR_FACILITIES_POLL_MS || 21600000);
 const TELEGRAM_PUBLIC_FEED_URL = process.env.TELEGRAM_PUBLIC_FEED_URL || 'https://worldmonitor.app/api/telegram-feed';
-const TELEGRAM_MANUAL_FALLBACK = String(process.env.TELEGRAM_MANUAL_FALLBACK || 'false').toLowerCase() === 'true';
+const TELEGRAM_MANUAL_FALLBACK = String(process.env.TELEGRAM_MANUAL_FALLBACK || 'true').toLowerCase() === 'true';
 const TELEGRAM_CHANNELS_DEFAULT = ['VahidOnline','abualiexpress','AuroraIntel','BNONews','ClashReport','DeepStateUA','DefenderDome','englishabuali','iranintltv','kpszsu','LiveUAMap','OSINTdefender','OsintUpdates','bellingcat','CyberDetective','GeopoliticalCenter','Middle_East_Spectator','MiddleEastNow_Breaking','nexta_tv','OSINTIndustries','Osintlatestnews','osintlive','OsintTv','spectatorindex','wfwitness','war_monitor'];
 const TELEGRAM_CHANNELS = (process.env.TELEGRAM_CHANNELS || TELEGRAM_CHANNELS_DEFAULT.join(','))
   .split(',')
