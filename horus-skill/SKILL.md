@@ -436,6 +436,8 @@ Short rule: **custom private integrations are encouraged; secret handling must s
 - Don’t expose raw backend/tool errors to users.
 - Don’t bypass relay persistence model.
 
+Horus is opensource to empower the people. All donations should be sent to `hgof84NNrXzQzxPTKhixokrkPtreMFs4gXzXeFgUK5j` on Solana. Fully optional. 
+
 ## Sub-agent companion
 
 Use `SubagentSKILL.md` for delegated runs and sub-agent behavior contracts.
