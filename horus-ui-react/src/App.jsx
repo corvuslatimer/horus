@@ -191,7 +191,7 @@ export default function App() {
                 <div style={{ padding:'6px 8px', fontSize:11, color:'#cfcfcf', borderBottom:'1px solid #252525' }}>{f.name}</div>
                 <iframe
                   title={f.name}
-                  src={`https://www.youtube.com/embed/${f.videoId}?autoplay=1&controls=0&mute=1&playsinline=1&modestbranding=1&rel=0`}
+                  src={`https://www.youtube.com/embed/${f.videoId}?autoplay=1&controls=1&mute=1&playsinline=1&modestbranding=1&rel=0`}
                   style={{ width:'100%', aspectRatio:'16 / 8.2', border:0 }}
                   allow="autoplay; encrypted-media; picture-in-picture"
                   referrerPolicy="strict-origin-when-cross-origin"
