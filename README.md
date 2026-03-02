@@ -1,5 +1,7 @@
 # Horus
 
+> **“Horus — the all-seeing eye for real-time signal, context, and action.”**
+
 Horus is a **open-source fully standalone OSINT terminal** built for fast situational awareness.
 
 It combines live signals, incident aggregation, military flight context, market overlays, and an integrated agent chat into one operator-style interface.

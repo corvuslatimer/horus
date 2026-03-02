@@ -31,6 +31,9 @@ const MACRO_POLL_MS = Number(process.env.MACRO_POLL_MS || 2000);
 const PPI_POLL_MS = Number(process.env.PPI_POLL_MS || 30000);
 const SECTOR_POLL_MS = Number(process.env.SECTOR_POLL_MS || 30000);
 const TELEGRAM_INTEL_POLL_MS = Number(process.env.TELEGRAM_INTEL_POLL_MS || 60000);
+const MILITARY_BASES_POLL_MS = Number(process.env.MILITARY_BASES_POLL_MS || 3600000);
+const EARTHQUAKES_POLL_MS = Number(process.env.EARTHQUAKES_POLL_MS || 300000);
+const NUCLEAR_FACILITIES_POLL_MS = Number(process.env.NUCLEAR_FACILITIES_POLL_MS || 21600000);
 const TELEGRAM_RELAY_URL = process.env.TELEGRAM_RELAY_URL || '';
 const TELEGRAM_RELAY_KEY = process.env.TELEGRAM_RELAY_KEY || '';
 const TELEGRAM_CHANNELS = (process.env.TELEGRAM_CHANNELS || 'VahidOnline,abualiexpress,AuroraIntel,BNONews,ClashReport,DeepStateUA,DefenderDome,englishabuali,iranintltv,kpszsu,LiveUAMap,OSINTdefender,OsintUpdates,bellingcat,CyberDetective,GeopoliticalCenter,Middle_East_Spectator,MiddleEastNow_Breaking,nexta_tv,OSINTIndustries,Osintlatestnews,osintlive,OsintTv,spectatorindex,wfwitness,war_monitor').split(',').map(x=>x.trim()).filter(Boolean);
@@ -52,7 +55,7 @@ const state = {
   status: {
     startedAt: Date.now(),
     j7: { connected: false, lastConnectAt: null, lastError: null },
-    pollers: { btc: null, flights: null, incidents: null, macro: null, ppi: null, sectors: null, telegramIntel: null },
+    pollers: { btc: null, flights: null, incidents: null, macro: null, ppi: null, sectors: null, telegramIntel: null, militaryBases: null, earthquakes: null, nuclearFacilities: null },
   }
 };
 
@@ -397,6 +400,95 @@ async function fetchSectorHeatmap() {
   ];
   return { sectors, ts: Date.now(), iso: nowIso() };
 }
+
+const MILITARY_BASES = [
+  { baseName: 'Al Udeid Air Base', country: 'Qatar', type: 'usa', latitude: 25.117, longitude: 51.315 },
+  { baseName: 'NSA Bahrain', country: 'Bahrain', type: 'usa', latitude: 26.215, longitude: 50.579 },
+  { baseName: 'Incirlik Air Base', country: 'Turkey', type: 'nato', latitude: 37.003, longitude: 35.425 },
+  { baseName: 'RAF Akrotiri', country: 'Cyprus', type: 'nato', latitude: 34.59, longitude: 32.99 },
+  { baseName: 'Camp Arifjan', country: 'Kuwait', type: 'usa', latitude: 28.86, longitude: 47.93 },
+  { baseName: 'Ramstein Air Base', country: 'Germany', type: 'nato', latitude: 49.44, longitude: 7.6 },
+  { baseName: 'Rota Naval Base', country: 'Spain', type: 'nato', latitude: 36.64, longitude: -6.35 },
+  { baseName: 'Diego Garcia', country: 'BIOT', type: 'usa', latitude: -7.31, longitude: 72.41 },
+  { baseName: 'Yokosuka Naval Base', country: 'Japan', type: 'usa', latitude: 35.28, longitude: 139.67 },
+  { baseName: 'Guam Andersen AFB', country: 'United States', type: 'usa', latitude: 13.58, longitude: 144.93 },
+  { baseName: 'Camp Lemonnier', country: 'Djibouti', type: 'usa', latitude: 11.55, longitude: 43.15 },
+  { baseName: 'Souda Bay', country: 'Greece', type: 'nato', latitude: 35.53, longitude: 24.15 },
+  { baseName: 'Al Dhafra Air Base', country: 'UAE', type: 'usa', latitude: 24.24, longitude: 54.55 },
+  { baseName: 'Sigonella NAS', country: 'Italy', type: 'nato', latitude: 37.4, longitude: 14.92 }
+];
+
+const NUCLEAR_FACILITIES = [
+  { id: 'natanz', name: 'Natanz Fuel Enrichment Plant', country: 'Iran', type: 'enrichment', status: 'active', latitude: 33.724, longitude: 51.725 },
+  { id: 'fordow', name: 'Fordow Fuel Enrichment Plant', country: 'Iran', type: 'enrichment', status: 'active', latitude: 34.885, longitude: 50.996 },
+  { id: 'dimona', name: 'Negev Nuclear Research Center', country: 'Israel', type: 'research', status: 'active', latitude: 31.0, longitude: 35.14 },
+  { id: 'bushehr', name: 'Bushehr Nuclear Power Plant', country: 'Iran', type: 'power', status: 'active', latitude: 28.829, longitude: 50.889 },
+  { id: 'akkuyu', name: 'Akkuyu Nuclear Plant', country: 'Turkey', type: 'power', status: 'under-construction', latitude: 36.143, longitude: 33.537 }
+];
+
+async function fetchMilitaryBases() {
+  return { source: 'local-static', count: MILITARY_BASES.length, bases: MILITARY_BASES, ts: Date.now(), iso: nowIso() };
+}
+
+async function fetchNuclearFacilities() {
+  return { source: 'local-static', count: NUCLEAR_FACILITIES.length, facilities: NUCLEAR_FACILITIES, ts: Date.now(), iso: nowIso() };
+}
+
+async function fetchEarthquakes() {
+  const url = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson';
+  const r = await fetch(url, { headers: { Accept: 'application/json', 'User-Agent': 'HorusRelay/1.0' } });
+  if (!r.ok) throw new Error(`usgs status ${r.status}`);
+  const j = await r.json();
+  const features = Array.isArray(j?.features) ? j.features : [];
+  const earthquakes = features.slice(0, 300).map((f) => {
+    const c = f?.geometry?.coordinates || [];
+    const p = f?.properties || {};
+    return {
+      id: String(f?.id || `${c[1]}-${c[0]}-${p?.time || Date.now()}`),
+      longitude: Number(c[0]),
+      latitude: Number(c[1]),
+      depth: Number(c[2] || 0),
+      magnitude: Number(p?.mag || 0),
+      place: String(p?.place || 'Unknown'),
+      time: p?.time ? new Date(Number(p.time)).toISOString() : nowIso(),
+      tsunami: Number(p?.tsunami || 0) === 1,
+      url: String(p?.url || '')
+    };
+  }).filter((x) => Number.isFinite(x.latitude) && Number.isFinite(x.longitude));
+  return { source: 'usgs', count: earthquakes.length, earthquakes, ts: Date.now(), iso: nowIso() };
+}
+
+async function runMilitaryBasesPoll() {
+  try {
+    const data = await fetchMilitaryBases();
+    await writeJson('military-bases.json', data);
+    state.status.pollers.militaryBases = { ok: true, at: Date.now(), count: data.count };
+  } catch (e) {
+    state.status.pollers.militaryBases = { ok: false, at: Date.now(), err: String(e?.message || e) };
+  }
+}
+
+async function runEarthquakesPoll() {
+  try {
+    const data = await fetchEarthquakes();
+    await writeJson('earthquakes.json', data);
+    state.status.pollers.earthquakes = { ok: true, at: Date.now(), count: data.count };
+  } catch (e) {
+    state.status.pollers.earthquakes = { ok: false, at: Date.now(), err: String(e?.message || e) };
+  }
+}
+
+async function runNuclearFacilitiesPoll() {
+  try {
+    const data = await fetchNuclearFacilities();
+    await writeJson('nuclear-facilities.json', data);
+    state.status.pollers.nuclearFacilities = { ok: true, at: Date.now(), count: data.count };
+  } catch (e) {
+    state.status.pollers.nuclearFacilities = { ok: false, at: Date.now(), err: String(e?.message || e) };
+  }
+}
+
+
 
 
 async function fetchTelegramIntel(limit = 80) {
@@ -791,6 +883,21 @@ app.get('/api/telegram-intel', async (_req, res) => {
   res.json(data);
 });
 
+app.get('/api/military-bases', async (_req, res) => {
+  const data = await readJson('military-bases.json', { source: 'none', count: 0, bases: [], ts: null });
+  res.json(data);
+});
+
+app.get('/api/earthquakes', async (_req, res) => {
+  const data = await readJson('earthquakes.json', { source: 'none', count: 0, earthquakes: [], ts: null });
+  res.json(data);
+});
+
+app.get('/api/nuclear-facilities', async (_req, res) => {
+  const data = await readJson('nuclear-facilities.json', { source: 'none', count: 0, facilities: [], ts: null });
+  res.json(data);
+});
+
 app.get('/api/markets', async (_req, res) => {
   const markets = await readJson('markets.json', { markets: [], ts: null });
   res.json(markets.markets || []);
@@ -806,7 +913,7 @@ app.get('/api/signals', async (_req, res) => {
 });
 
 app.get('/api/snapshots', async (_req, res) => {
-  const [btc, macro, flights, incidents, signals, chat, ppi, sectorHeatmap, telegramIntel] = await Promise.all([
+  const [btc, macro, flights, incidents, signals, chat, ppi, sectorHeatmap, telegramIntel, militaryBases, earthquakes, nuclearFacilities] = await Promise.all([
     readJson('btc.json', null),
     readJson('macro.json', null),
     readJson('flights.json', null),
@@ -819,9 +926,12 @@ app.get('/api/snapshots', async (_req, res) => {
     readJson('chat.json', { messages: [] }),
     readJson('ppi.json', { weightedAvg: 0, locations: [], ts: null }),
     readJson('sector-heatmap.json', { sectors: [], ts: null }),
-    readJson('telegram-intel.json', { source: 'telegram-relay', enabled: false, earlySignal: false, count: 0, updatedAt: null, items: [] })
+    readJson('telegram-intel.json', { source: 'telegram-relay', enabled: false, earlySignal: false, count: 0, updatedAt: null, items: [] }),
+    readJson('military-bases.json', { source: 'none', count: 0, bases: [], ts: null }),
+    readJson('earthquakes.json', { source: 'none', count: 0, earthquakes: [], ts: null }),
+    readJson('nuclear-facilities.json', { source: 'none', count: 0, facilities: [], ts: null })
   ]);
-  res.json({ ts: Date.now(), btc, macro, flights, incidents, signals, chat, ppi, sectorHeatmap, telegramIntel, status: state.status });
+  res.json({ ts: Date.now(), btc, macro, flights, incidents, signals, chat, ppi, sectorHeatmap, telegramIntel, militaryBases, earthquakes, nuclearFacilities, status: state.status });
 });
 
 app.get('/api/chat', async (_req, res) => {
@@ -862,6 +972,9 @@ await Promise.allSettled([
   runPpiPoll(),
   runSectorPoll(),
   runTelegramIntelPoll(),
+  runMilitaryBasesPoll(),
+  runEarthquakesPoll(),
+  runNuclearFacilitiesPoll(),
 rewriteNdjson('signals.ndjson', await readNdjson('signals.ndjson', []), MAX_SIGNALS)
 ]);
 
@@ -872,6 +985,9 @@ setInterval(runMacroPoll, MACRO_POLL_MS);
 setInterval(runPpiPoll, PPI_POLL_MS);
 setInterval(runSectorPoll, SECTOR_POLL_MS);
 setInterval(runTelegramIntelPoll, TELEGRAM_INTEL_POLL_MS);
+setInterval(runMilitaryBasesPoll, MILITARY_BASES_POLL_MS);
+setInterval(runEarthquakesPoll, EARTHQUAKES_POLL_MS);
+setInterval(runNuclearFacilitiesPoll, NUCLEAR_FACILITIES_POLL_MS);
 if (!j7Token) await loginJ7();
 startJ7Collector();
 

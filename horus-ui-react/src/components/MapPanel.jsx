@@ -62,24 +62,6 @@ const TRADE_ROUTES = [
   { name: 'Transpacific Container', points: [[35.7, 139.7], [37.5, 126.9], [34.0, -118.2], [47.6, -122.3]] }
 ]
 
-const BASES = [
-  { name: 'Al Udeid Air Base', lat: 25.117, lng: 51.315 },
-  { name: 'NSA Bahrain', lat: 26.215, lng: 50.579 },
-  { name: 'Incirlik Air Base', lat: 37.003, lng: 35.425 },
-  { name: 'RAF Akrotiri', lat: 34.59, lng: 32.99 },
-  { name: 'Camp Arifjan', lat: 28.86, lng: 47.93 },
-  { name: 'Ramstein Air Base', lat: 49.44, lng: 7.60 },
-  { name: 'Rota Naval Base', lat: 36.64, lng: -6.35 },
-  { name: 'Diego Garcia', lat: -7.31, lng: 72.41 },
-  { name: 'Yokosuka Naval Base', lat: 35.28, lng: 139.67 },
-  { name: 'Guam Andersen AFB', lat: 13.58, lng: 144.93 },
-  { name: 'Camp Lemonnier', lat: 11.55, lng: 43.15 },
-  { name: 'Souda Bay', lat: 35.53, lng: 24.15 },
-  { name: 'Al Dhafra Air Base', lat: 24.24, lng: 54.55 },
-  { name: 'Sigonella NAS', lat: 37.40, lng: 14.92 }
-]
-
-
 const CABLES = [
   { name: 'SEA-ME-WE Corridor', points: [[31.2, 29.9], [13.4, 43.2], [7.0, 79.8], [1.3, 103.8]] },
   { name: 'Europe-Middle East Link', points: [[41.0, 28.9], [35.7, 34.8], [31.2, 29.9]] },
@@ -231,9 +213,11 @@ export default function MapPanel() {
   const eventsLayerRef = useRef(null)
   const shippingLayerRef = useRef(null)
   const infraLayerRef = useRef(null)
+  const earthquakeLayerRef = useRef(null)
+  const nuclearLayerRef = useRef(null)
   const lastFlightsTsRef = useRef(null)
   const refreshIdRef = useRef(null)
-  const layersRef = useRef({ hotspots: true, flights: true, trails: true, chokepoints: true, tradeRoutes: true, bases: false, cables: false, pipelines: false, conflicts: true, events: true, shipping: true, infra: true })
+  const layersRef = useRef({ hotspots: true, flights: true, trails: true, chokepoints: true, tradeRoutes: true, bases: false, cables: false, pipelines: false, conflicts: true, events: true, shipping: true, infra: true, earthquakes: false, nuclear: false })
   const flightsRef = useRef([])
   const prevRiskRef = useRef(null)
 
@@ -241,7 +225,7 @@ export default function MapPanel() {
 
   const [selected, setSelected] = useState(null)
   const [activePreset, setActivePreset] = useState(persisted?.activePreset && PRESETS[persisted.activePreset] ? persisted.activePreset : 'GLOBAL')
-  const [layers, setLayers] = useState(persisted?.layers || { hotspots: true, flights: true, trails: true, chokepoints: true, tradeRoutes: true, bases: false, cables: false, pipelines: false, conflicts: true, events: true, shipping: true, infra: true })
+  const [layers, setLayers] = useState(persisted?.layers || { hotspots: true, flights: true, trails: true, chokepoints: true, tradeRoutes: true, bases: false, cables: false, pipelines: false, conflicts: true, events: true, shipping: true, infra: true, earthquakes: false, nuclear: false })
   const [timeWindow, setTimeWindow] = useState(persisted?.timeWindow && TIME_WINDOWS[persisted.timeWindow] ? persisted.timeWindow : '24H')
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [paletteQ, setPaletteQ] = useState('')
@@ -249,6 +233,9 @@ export default function MapPanel() {
   const [riskFusion, setRiskFusion] = useState({ score: 0, trend: 'stable', hotspots: 0, nearFlights: 0, updatedTs: null })
   const [_flightHealth, setFlightHealth] = useState({ lastOkTs: null, lastErrorTs: null, lastError: null })
   const [liveFeedsOpen, setLiveFeedsOpen] = useState(false)
+  const [militaryBases, setMilitaryBases] = useState([])
+  const [earthquakes, setEarthquakes] = useState([])
+  const [nuclearFacilities, setNuclearFacilities] = useState([])
 
   const activePresetRef = useRef(activePreset)
   const timeWindowRef = useRef(timeWindow)
@@ -333,6 +320,8 @@ export default function MapPanel() {
     eventsLayerRef.current = L.layerGroup().addTo(map)
     shippingLayerRef.current = L.layerGroup().addTo(map)
     infraLayerRef.current = L.layerGroup().addTo(map)
+    earthquakeLayerRef.current = L.layerGroup().addTo(map)
+    nuclearLayerRef.current = L.layerGroup().addTo(map)
     mapObjRef.current = map
 
     HOTSPOTS.forEach(h => {
@@ -362,12 +351,18 @@ export default function MapPanel() {
       line.addTo(tradeRouteLayerRef.current)
     })
 
-    BASES.forEach(b => {
-      const m = L.circleMarker([b.lat, b.lng], { radius: 4, color: '#a78bfa', weight: 1.5, fillColor: '#a78bfa', fillOpacity: 0.9 })
-      m.bindTooltip(`<b>${b.name}</b><br/>Military base`, { direction: 'top', opacity: 0.95 })
-      m.addTo(baseLayerRef.current)
-    })
+    const paintMilitaryBases = (items = militaryBases) => {
+      baseLayerRef.current.clearLayers()
+      items.forEach(b => {
+        const isUsa = String(b.type || '').toLowerCase() === 'usa'
+        const color = isUsa ? '#22c55e' : '#3b82f6'
+        const m = L.circleMarker([Number(b.latitude ?? b.lat), Number(b.longitude ?? b.lng)], { radius: 4, color, weight: 1.5, fillColor: color, fillOpacity: 0.9 })
+        m.bindTooltip(`<b>${b.baseName || b.name}</b><br/>${String((b.type || 'base')).toUpperCase()} base · ${b.country || 'Unknown'}`, { direction: 'top', opacity: 0.95 })
+        m.addTo(baseLayerRef.current)
+      })
+    }
 
+    paintMilitaryBases()
 
     CABLES.forEach(c => {
       const line = L.polyline(c.points, { color: '#60a5fa', weight: 2, opacity: 0.55 })
@@ -409,6 +404,31 @@ export default function MapPanel() {
       m.addTo(infraLayerRef.current)
     })
 
+    const paintEarthquakes = (items = earthquakes) => {
+      earthquakeLayerRef.current.clearLayers()
+      items.forEach(q => {
+        const mag = Number(q.magnitude || 0)
+        const color = mag >= 6 ? '#ef4444' : mag >= 4 ? '#f97316' : '#eab308'
+        const r = Math.max(3, Math.min(16, 2 + mag * 1.8))
+        const m = L.circleMarker([Number(q.latitude), Number(q.longitude)], { radius: r, color, weight: 1.3, fillColor: color, fillOpacity: 0.45 })
+        m.bindTooltip(`<b>M${mag.toFixed(1)}</b> ${q.place || 'Earthquake'}<br/>Depth: ${Number(q.depth || 0).toFixed(1)} km`, { direction:'top', opacity:0.95 })
+        m.addTo(earthquakeLayerRef.current)
+      })
+    }
+
+    const paintNuclearFacilities = (items = nuclearFacilities) => {
+      nuclearLayerRef.current.clearLayers()
+      items.forEach(n => {
+        const color = String(n.status || '').toLowerCase().includes('active') ? '#facc15' : '#a3a3a3'
+        const m = L.circleMarker([Number(n.latitude), Number(n.longitude)], { radius: 5, color, weight: 1.5, fillColor: color, fillOpacity: 0.85 })
+        m.bindTooltip(`<b>${n.name}</b><br/>${n.country} · ${n.type} · ${n.status}`, { direction:'top', opacity:0.95 })
+        m.addTo(nuclearLayerRef.current)
+      })
+    }
+
+    paintEarthquakes()
+    paintNuclearFacilities()
+
     const syncZoomDisclosure = () => {
       const z = map.getZoom()
       const showTrailsAtZoom = z >= 4
@@ -420,6 +440,49 @@ export default function MapPanel() {
     }
 
     map.on('zoomend', syncZoomDisclosure)
+
+    const loadIntelLayers = async () => {
+      try {
+        const [bRes, eRes, nRes] = await Promise.all([
+          fetch(`${RELAY}/api/military-bases`),
+          fetch(`${RELAY}/api/earthquakes`),
+          fetch(`${RELAY}/api/nuclear-facilities`)
+        ])
+        const [b, e, n] = await Promise.all([bRes.json(), eRes.json(), nRes.json()])
+        const bItems = Array.isArray(b?.bases) ? b.bases : []
+        const eItems = Array.isArray(e?.earthquakes) ? e.earthquakes : []
+        const nItems = Array.isArray(n?.facilities) ? n.facilities : []
+        setMilitaryBases(bItems)
+        setEarthquakes(eItems)
+        setNuclearFacilities(nItems)
+        baseLayerRef.current.clearLayers()
+        bItems.forEach(item => {
+          const isUsa = String(item.type || '').toLowerCase() === 'usa'
+          const color = isUsa ? '#22c55e' : '#3b82f6'
+          const m = L.circleMarker([Number(item.latitude ?? item.lat), Number(item.longitude ?? item.lng)], { radius: 4, color, weight: 1.5, fillColor: color, fillOpacity: 0.9 })
+          m.bindTooltip(`<b>${item.baseName || item.name}</b><br/>${String((item.type || 'base')).toUpperCase()} base · ${item.country || 'Unknown'}`, { direction: 'top', opacity: 0.95 })
+          m.addTo(baseLayerRef.current)
+        })
+        earthquakeLayerRef.current.clearLayers()
+        eItems.forEach(q => {
+          const mag = Number(q.magnitude || 0)
+          const color = mag >= 6 ? '#ef4444' : mag >= 4 ? '#f97316' : '#eab308'
+          const r = Math.max(3, Math.min(16, 2 + mag * 1.8))
+          const m = L.circleMarker([Number(q.latitude), Number(q.longitude)], { radius: r, color, weight: 1.3, fillColor: color, fillOpacity: 0.45 })
+          m.bindTooltip(`<b>M${mag.toFixed(1)}</b> ${q.place || 'Earthquake'}<br/>Depth: ${Number(q.depth || 0).toFixed(1)} km`, { direction:'top', opacity:0.95 })
+          m.addTo(earthquakeLayerRef.current)
+        })
+        nuclearLayerRef.current.clearLayers()
+        nItems.forEach(item => {
+          const color = String(item.status || '').toLowerCase().includes('active') ? '#facc15' : '#a3a3a3'
+          const m = L.circleMarker([Number(item.latitude), Number(item.longitude)], { radius: 5, color, weight: 1.5, fillColor: color, fillOpacity: 0.85 })
+          m.bindTooltip(`<b>${item.name}</b><br/>${item.country} · ${item.type} · ${item.status}`, { direction:'top', opacity:0.95 })
+          m.addTo(nuclearLayerRef.current)
+        })
+      } catch (err) {
+        console.debug(err)
+      }
+    }
 
     const loadFlights = async () => {
       try {
@@ -465,7 +528,8 @@ export default function MapPanel() {
     }
 
     loadFlights()
-    refreshIdRef.current = setInterval(loadFlights, 30000)
+    loadIntelLayers()
+    refreshIdRef.current = setInterval(() => { loadFlights(); loadIntelLayers() }, 30000)
 
     return () => {
       if (refreshIdRef.current) clearInterval(refreshIdRef.current)
@@ -490,7 +554,9 @@ export default function MapPanel() {
       ['conflicts', conflictLayerRef.current],
       ['events', eventsLayerRef.current],
       ['shipping', shippingLayerRef.current],
-      ['infra', infraLayerRef.current]
+      ['infra', infraLayerRef.current],
+      ['earthquakes', earthquakeLayerRef.current],
+      ['nuclear', nuclearLayerRef.current]
     ]
 
     layerTargets.forEach(([name, layer]) => {
@@ -564,7 +630,7 @@ export default function MapPanel() {
         </div>
 
         <div style={{ background: 'rgba(0,0,0,.62)', padding: '5px 6px', border: '1px solid #333', borderRadius: 6, fontSize: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {[['hotspots', 'Hotspots'], ['flights', 'Flights'], ['trails', 'Trails'], ['chokepoints', 'Chokepoints'], ['tradeRoutes', 'Trade Routes'], ['bases', 'Bases'], ['cables', 'Cables'], ['pipelines', 'Pipelines'], ['conflicts', 'Conflicts'], ['events', 'Events'], ['shipping', 'Shipping'], ['infra', 'Infra']].map(([key, label]) => (
+          {[['hotspots', 'Hotspots'], ['flights', 'Flights'], ['trails', 'Trails'], ['chokepoints', 'Chokepoints'], ['tradeRoutes', 'Trade Routes'], ['bases', 'Bases'], ['earthquakes', 'Earthquakes'], ['nuclear', 'Nuclear'], ['cables', 'Cables'], ['pipelines', 'Pipelines'], ['conflicts', 'Conflicts'], ['events', 'Events'], ['shipping', 'Shipping'], ['infra', 'Infra']].map(([key, label]) => (
             <label key={key} style={{ display: 'flex', gap: 4, alignItems: 'center', cursor: 'pointer' }}>
               <input type='checkbox' checked={layers[key]} onChange={(e) => setLayers(s => ({ ...s, [key]: e.target.checked }))} />
               {label}
@@ -602,6 +668,8 @@ export default function MapPanel() {
         <span><span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: '#f97316', marginRight: 4 }} />CHOKEPOINT</span>
         <span><span style={{ display: 'inline-block', width: 14, height: 0, borderTop: '2px dashed #22d3ee', marginRight: 4, position:'relative', top:-2 }} />TRADE</span>
         <span><span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: '#a78bfa', marginRight: 4 }} />BASE</span>
+        <span><span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: '#eab308', marginRight: 4 }} />QUAKE</span>
+        <span><span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: '#facc15', marginRight: 4 }} />NUCLEAR</span>
         <span><span style={{ display: 'inline-block', width: 14, height: 0, borderTop: '2px solid #60a5fa', marginRight: 4, position:'relative', top:-2 }} />CABLE</span>
         <span><span style={{ display: 'inline-block', width: 14, height: 0, borderTop: '2px dashed #fb7185', marginRight: 4, position:'relative', top:-2 }} />PIPELINE</span>
         <span><span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: '#ef4444', marginRight: 4, opacity:0.6 }} />CONFLICT</span>
